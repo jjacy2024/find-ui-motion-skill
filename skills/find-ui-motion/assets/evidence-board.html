@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Source Motion Evidence</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #080a10;
+      --panel: #11151f;
+      --panel-2: #171c28;
+      --line: rgba(255,255,255,.11);
+      --text: #f7f8fb;
+      --muted: #9aa4b8;
+      --accent: #9b8cff;
+      --ok: #65dccb;
+      --warn: #ffc773;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 8% 0%, rgba(155,140,255,.18), transparent 28rem),
+        radial-gradient(circle at 94% 8%, rgba(101,220,203,.12), transparent 24rem),
+        var(--bg);
+      font: 14px/1.5 Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    main { width: min(1240px, calc(100% - 36px)); margin: 0 auto; padding: 46px 0 70px; }
+    header { display: grid; gap: 12px; margin-bottom: 28px; }
+    .eyebrow { color: var(--ok); font-size: 11px; letter-spacing: .16em; text-transform: uppercase; }
+    h1 { margin: 0; max-width: 980px; font-size: clamp(30px, 5vw, 58px); line-height: 1.03; letter-spacing: -.045em; }
+    .lead { max-width: 840px; margin: 0; color: var(--muted); font-size: 16px; }
+    .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+    button, .source-link {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 8px 13px;
+      color: var(--text);
+      background: rgba(255,255,255,.055);
+      font: inherit;
+      text-decoration: none;
+    }
+    button { cursor: pointer; }
+    button:hover, .source-link:hover { background: rgba(255,255,255,.11); }
+    .notice { color: var(--warn); font-size: 12px; }
+    .grid { display: grid; gap: 18px; }
+    article {
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      background: linear-gradient(150deg, rgba(255,255,255,.025), transparent 38%), var(--panel);
+      box-shadow: 0 28px 80px rgba(0,0,0,.25);
+    }
+    .media-stage {
+      min-height: 260px;
+      padding: 14px;
+      display: grid;
+      background: #05070c;
+      border-bottom: 1px solid var(--line);
+    }
+    .media-stage.empty { place-items: center; color: var(--muted); text-align: center; }
+    .storyboard { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+    figure { min-width: 0; margin: 0; display: grid; gap: 7px; }
+    img, video {
+      display: block;
+      width: 100%;
+      height: min(44vw, 390px);
+      min-height: 230px;
+      object-fit: contain;
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 14px;
+      background: #0a0d14;
+    }
+    figcaption { color: var(--muted); font-size: 11px; }
+    .copy { padding: 20px; display: grid; gap: 14px; }
+    .topline { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px; }
+    h2 { margin: 0; font-size: 21px; letter-spacing: -.025em; }
+    .direction { color: #d8dce7; }
+    .badges { display: flex; flex-wrap: wrap; gap: 7px; }
+    .badge { border: 1px solid rgba(155,140,255,.3); border-radius: 999px; padding: 4px 8px; color: #d2ccff; background: rgba(155,140,255,.1); font-size: 10px; letter-spacing: .04em; text-transform: uppercase; }
+    dl { margin: 0; display: grid; grid-template-columns: 92px 1fr; gap: 7px 12px; }
+    dt { color: #737e94; }
+    dd { margin: 0; color: #c8cfdd; overflow-wrap: anywhere; }
+    .footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding-top: 13px; border-top: 1px solid var(--line); }
+    .rights { max-width: 780px; color: var(--muted); font-size: 11px; }
+    @media (max-width: 700px) {
+      main { width: min(100% - 22px, 1240px); padding-top: 28px; }
+      .media-stage { min-height: 210px; padding: 9px; }
+      img, video { min-height: 190px; height: 58vw; }
+      dl { grid-template-columns: 1fr; gap: 3px; }
+      dd { margin-bottom: 7px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .001ms !important; animation-iteration-count: 1 !important; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <span class="eyebrow">Find UI Motion · Source Evidence</span>
+      <h1 id="title">Real source examples</h1>
+      <p class="lead" id="summary"></p>
+      <div class="toolbar">
+        <button id="replay" type="button">Replay videos</button>
+        <span class="notice">真实来源预览仅用于识别与比较，不自动授予代码或素材复用权。</span>
+      </div>
+    </header>
+    <section class="grid" id="grid"></section>
+  </main>
+  <script id="evidence-data" type="application/json">__SOURCE_EVIDENCE_DATA__</script>
+  <script>
+    const data = JSON.parse(document.getElementById('evidence-data').textContent);
+    const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const grid = document.getElementById('grid');
+    document.getElementById('title').textContent = `“${data.query}” 的真实来源案例`;
+    document.getElementById('summary').textContent = data.summary;
+
+    function appendText(parent, tag, className, value) {
+      const element = document.createElement(tag);
+      if (className) element.className = className;
+      element.textContent = value;
+      parent.appendChild(element);
+      return element;
+    }
+
+    function appendDefinition(list, term, value) {
+      appendText(list, 'dt', '', term);
+      appendText(list, 'dd', '', value || '—');
+    }
+
+    data.items.forEach((item, index) => {
+      const article = document.createElement('article');
+      const stage = document.createElement('div');
+      stage.className = 'media-stage';
+      const media = item.evidence.media;
+      if (!media.length) {
+        stage.classList.add('empty');
+        appendText(stage, 'p', '', '当前来源不适合本地捕获。请打开精确案例页查看真实交互。');
+      } else {
+        const storyboard = document.createElement('div');
+        storyboard.className = 'storyboard';
+        media.forEach(entry => {
+          const figure = document.createElement('figure');
+          let visual;
+          if (entry.media_type === 'video') {
+            visual = document.createElement('video');
+            visual.controls = true;
+            visual.muted = true;
+            visual.loop = true;
+            visual.playsInline = true;
+            visual.autoplay = !reduced;
+          } else {
+            visual = document.createElement('img');
+            visual.alt = `${item.title} · ${entry.label}`;
+          }
+          visual.src = entry.data_uri;
+          figure.appendChild(visual);
+          appendText(figure, 'figcaption', '', entry.label);
+          storyboard.appendChild(figure);
+        });
+        stage.appendChild(storyboard);
+      }
+      article.appendChild(stage);
+
+      const copy = document.createElement('div');
+      copy.className = 'copy';
+      const top = document.createElement('div');
+      top.className = 'topline';
+      const heading = document.createElement('div');
+      appendText(heading, 'h2', '', `${index + 1}. ${item.title}`);
+      appendText(heading, 'div', 'direction', item.direction);
+      top.appendChild(heading);
+      const badges = document.createElement('div');
+      badges.className = 'badges';
+      appendText(badges, 'span', 'badge', item.evidence.kind);
+      appendText(badges, 'span', 'badge', item.source.site);
+      top.appendChild(badges);
+      copy.appendChild(top);
+
+      const list = document.createElement('dl');
+      appendDefinition(list, 'Trigger', item.evidence.trigger);
+      appendDefinition(list, 'Captured', item.evidence.captured_at);
+      appendDefinition(list, 'Verification', item.evidence.verification);
+      appendDefinition(list, 'Motion DNA', Object.entries(item.motion_dna || {}).map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') : value}`).join(' · '));
+      appendDefinition(list, 'Tradeoff', item.tradeoff);
+      copy.appendChild(list);
+
+      const footer = document.createElement('div');
+      footer.className = 'footer';
+      appendText(footer, 'span', 'rights', item.rights_note);
+      const link = document.createElement('a');
+      link.className = 'source-link';
+      link.href = item.source.url;
+      link.target = '_blank';
+      link.rel = 'noreferrer';
+      link.textContent = 'Open exact source';
+      footer.appendChild(link);
+      copy.appendChild(footer);
+      article.appendChild(copy);
+      grid.appendChild(article);
+    });
+
+    document.getElementById('replay').addEventListener('click', () => {
+      document.querySelectorAll('video').forEach(video => {
+        video.currentTime = 0;
+        if (!reduced) video.play();
+      });
+    });
+  </script>
+</body>
+</html>

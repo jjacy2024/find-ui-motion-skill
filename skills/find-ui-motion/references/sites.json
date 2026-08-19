@@ -1,0 +1,373 @@
+{
+  "schema_version": 1,
+  "catalog_version": "2026.08.5",
+  "generated_at": "2026-08-19T03:40:30Z",
+  "sites": [
+    {
+      "id": "motion",
+      "name": "Motion",
+      "status": "active",
+      "auth": "none",
+      "kind": "code-library",
+      "homepage": "https://motion.dev/",
+      "routes": {
+        "examples": "https://motion.dev/examples",
+        "categories": {
+          "entrance": "https://motion.dev/examples",
+          "transition": "https://motion.dev/examples",
+          "scroll": "https://motion.dev/examples",
+          "gesture": "https://motion.dev/examples"
+        }
+      },
+      "capabilities": ["snippet", "package", "recreate", "inspiration"],
+      "stacks": ["javascript", "react", "vue"],
+      "tags": ["entrance", "transition", "scroll", "gesture", "spring", "layout"],
+      "license": {
+        "status": "explicit",
+        "url": "https://github.com/motiondivision/motion/blob/main/LICENSE.md"
+      },
+      "added_at": "2026-08-18",
+      "last_shallow_check": "2026-08-18",
+      "last_deep_review": null,
+      "access_notes": "Examples route returned HTTP 200 during shallow verification; verify the selected example and current terms live."
+    },
+    {
+      "id": "gsap-demos",
+      "name": "GSAP Demos",
+      "status": "active",
+      "auth": "none",
+      "kind": "code-library",
+      "homepage": "https://gsap.com/",
+      "routes": {
+        "examples": "https://demos.gsap.com/",
+        "categories": {
+          "transition": "https://demos.gsap.com/",
+          "scroll": "https://demos.gsap.com/",
+          "text": "https://demos.gsap.com/",
+          "three-d": "https://demos.gsap.com/"
+        }
+      },
+      "capabilities": ["snippet", "package", "recreate", "inspiration"],
+      "stacks": ["agnostic", "javascript", "react", "vue"],
+      "tags": ["transition", "scroll", "text", "timeline", "svg", "three-d"],
+      "license": {
+        "status": "restricted",
+        "url": "https://gsap.com/community/standard-license/"
+      },
+      "added_at": "2026-08-18",
+      "last_shallow_check": "2026-08-18",
+      "last_deep_review": null,
+      "access_notes": "Demos route and current standard-license page returned HTTP 200; verify the chosen demo terms live."
+    },
+    {
+      "id": "animista",
+      "name": "Animista",
+      "status": "active",
+      "auth": "none",
+      "kind": "editor",
+      "homepage": "https://animista.net/",
+      "routes": {
+        "examples": "https://animista.net/",
+        "categories": {
+          "entrance": "https://animista.net/play/entrances",
+          "exit": "https://animista.net/play/exits",
+          "attention": "https://animista.net/play/attention"
+        }
+      },
+      "capabilities": ["snippet", "recreate", "inspiration"],
+      "stacks": ["css"],
+      "tags": ["entrance", "exit", "attention", "css", "keyframes"],
+      "license": {
+        "status": "unclear",
+        "url": null
+      },
+      "added_at": "2026-08-18",
+      "last_shallow_check": "2026-08-18",
+      "last_deep_review": null,
+      "access_notes": "Homepage returned HTTP 200. Treat generated CSS as unavailable for copying until current terms are checked in the browser."
+    },
+    {
+      "id": "react-bits",
+      "name": "React Bits",
+      "status": "active",
+      "auth": "none",
+      "kind": "component-library",
+      "homepage": "https://reactbits.dev/",
+      "routes": {
+        "examples": "https://reactbits.dev/",
+        "categories": {
+          "text": "https://reactbits.dev/text-animations",
+          "ambient": "https://reactbits.dev/backgrounds",
+          "component": "https://reactbits.dev/components"
+        }
+      },
+      "capabilities": ["snippet", "package", "recreate", "inspiration"],
+      "stacks": ["react"],
+      "tags": ["text", "background", "component", "react", "webgl"],
+      "license": {
+        "status": "restricted",
+        "url": "https://github.com/DavidHDev/react-bits/blob/main/LICENSE.md"
+      },
+      "added_at": "2026-08-18",
+      "last_shallow_check": "2026-08-18",
+      "last_deep_review": null,
+      "access_notes": "Repository license is MIT plus Commons Clause as observed on 2026-08-18; verify current restrictions before reuse."
+    },
+    {
+      "id": "magic-ui",
+      "name": "Magic UI",
+      "status": "active",
+      "auth": "none",
+      "kind": "component-library",
+      "homepage": "https://magicui.design/",
+      "routes": {
+        "examples": "https://magicui.design/docs/components",
+        "categories": {
+          "component": "https://magicui.design/docs/components",
+          "text": "https://magicui.design/docs/components",
+          "ambient": "https://magicui.design/docs/components"
+        }
+      },
+      "capabilities": ["snippet", "package", "recreate", "inspiration"],
+      "stacks": ["react"],
+      "tags": ["component", "text", "background", "react", "tailwind"],
+      "license": {
+        "status": "explicit",
+        "url": "https://github.com/magicuidesign/magicui/blob/main/LICENSE.md"
+      },
+      "added_at": "2026-08-18",
+      "last_shallow_check": "2026-08-18",
+      "last_deep_review": "2026-08-18",
+      "access_notes": "Browser review verified the Shimmer Button preview, public Manual Copy path, registry command, and MIT repository license. Verify each selected component's current dependencies and generated import path."
+    },
+    {
+      "id": "codrops",
+      "name": "Codrops",
+      "status": "active",
+      "auth": "none",
+      "kind": "community",
+      "homepage": "https://tympanus.net/codrops/",
+      "routes": {
+        "search": "https://tympanus.net/codrops/?s={query}",
+        "examples": "https://tympanus.net/codrops/"
+      },
+      "capabilities": ["snippet", "recreate", "inspiration"],
+      "stacks": ["css", "javascript", "react", "webgl"],
+      "tags": ["experimental", "transition", "scroll", "webgl", "typography"],
+      "license": {
+        "status": "item-specific",
+        "url": "https://tympanus.net/codrops/licensing/"
+      },
+      "added_at": "2026-08-18",
+      "last_shallow_check": "2026-08-18",
+      "last_deep_review": null,
+      "access_notes": "Homepage and licensing page returned HTTP 200; individual demos may use different terms."
+    },
+    {
+      "id": "rive-community",
+      "name": "Rive Community",
+      "status": "active",
+      "auth": "required-for-download",
+      "kind": "asset-library",
+      "homepage": "https://rive.app/",
+      "routes": {
+        "examples": "https://rive.app/community/files/"
+      },
+      "capabilities": ["asset", "package", "recreate", "inspiration"],
+      "stacks": ["rive", "javascript", "react", "vue"],
+      "tags": ["asset", "interactive", "state-machine", "character", "icon"],
+      "license": {
+        "status": "item-specific",
+        "url": "https://help.rive.app/legal/terms-of-service"
+      },
+      "added_at": "2026-08-18",
+      "last_shallow_check": null,
+      "last_deep_review": "2026-08-18",
+      "access_notes": "Browser review found the former /community route returns 404 and confirmed /community/files/ as the current Marketplace route. Verify download rights and runtime requirements per asset."
+    },
+    {
+      "id": "uiverse",
+      "name": "Uiverse",
+      "status": "active",
+      "auth": "none",
+      "kind": "component-library",
+      "homepage": "https://uiverse.io/",
+      "routes": {
+        "examples": "https://uiverse.io/elements",
+        "categories": {
+          "hover": "https://uiverse.io/buttons",
+          "feedback": "https://uiverse.io/buttons",
+          "loading": "https://uiverse.io/loaders",
+          "component": "https://uiverse.io/elements"
+        }
+      },
+      "capabilities": ["snippet", "recreate", "inspiration"],
+      "stacks": ["css", "tailwind"],
+      "tags": ["hover", "button", "loader", "form", "css", "tailwind"],
+      "license": {
+        "status": "explicit",
+        "url": "https://opensource.org/license/mit"
+      },
+      "added_at": "2026-08-18",
+      "last_shallow_check": null,
+      "last_deep_review": "2026-08-18",
+      "access_notes": "Automated requests returned HTTP 403, but browser review verified public Get code actions and the site's statement that UI elements use the MIT License. Verify the selected element and attribution requirements live."
+    },
+    {
+      "id": "unicorn-studio",
+      "name": "Unicorn Studio Inspiration",
+      "status": "active",
+      "auth": "optional",
+      "kind": "editor",
+      "homepage": "https://www.unicorn.studio/",
+      "routes": {
+        "examples": "https://www.unicorn.studio/inspiration",
+        "categories": {
+          "ambient": "https://www.unicorn.studio/inspiration",
+          "scroll": "https://www.unicorn.studio/inspiration",
+          "three-d": "https://www.unicorn.studio/inspiration"
+        }
+      },
+      "capabilities": ["package", "recreate", "inspiration"],
+      "stacks": ["javascript", "react", "webgl", "video"],
+      "tags": ["ambient", "three-d", "shader", "scroll", "pointer", "interactive"],
+      "license": {
+        "status": "restricted",
+        "url": "https://www.unicorn.studio/terms"
+      },
+      "added_at": "2026-08-18",
+      "last_shallow_check": "2026-08-18",
+      "last_deep_review": "2026-08-18",
+      "access_notes": "The public inspiration gallery is suitable for discovery. Free-plan output is limited to non-commercial personal use with a watermark; commercial use and JSON export require the applicable paid plan. The SDK is proprietary and only licensed for legitimate Unicorn Studio projects."
+    },
+    {
+      "id": "lottielab",
+      "name": "Lottielab Templates",
+      "status": "active",
+      "auth": "required-for-download",
+      "kind": "asset-library",
+      "homepage": "https://www.lottielab.com/",
+      "routes": {
+        "examples": "https://www.lottielab.com/templates",
+        "categories": {
+          "loading": "https://www.lottielab.com/templates/icons",
+          "feedback": "https://www.lottielab.com/templates/icons",
+          "ambient": "https://www.lottielab.com/templates/illustrations"
+        }
+      },
+      "capabilities": ["asset", "recreate", "inspiration"],
+      "stacks": ["lottie", "javascript", "react", "svg", "video"],
+      "tags": ["asset", "icon", "illustration", "logo", "mockup", "loading"],
+      "license": {
+        "status": "restricted",
+        "url": "https://www.lottielab.com/terms"
+      },
+      "added_at": "2026-08-18",
+      "last_shallow_check": "2026-08-18",
+      "last_deep_review": "2026-08-18",
+      "access_notes": "Browser review verified editable templates and Lottie, GIF, MP4 export labels. Current site terms grant only personal, non-commercial transitory use of site materials; verify the selected template and intended use before editing or exporting."
+    },
+    {
+      "id": "design-spells",
+      "name": "Design Spells",
+      "status": "active",
+      "auth": "none",
+      "kind": "community",
+      "homepage": "https://designspells.com/",
+      "routes": {
+        "examples": "https://designspells.com/"
+      },
+      "capabilities": ["recreate", "inspiration"],
+      "stacks": ["agnostic"],
+      "tags": ["feedback", "transition", "interaction", "microinteraction", "mobile", "desktop"],
+      "license": {
+        "status": "unclear",
+        "url": null
+      },
+      "added_at": "2026-08-18",
+      "last_shallow_check": "2026-08-18",
+      "last_deep_review": "2026-08-18",
+      "access_notes": "The site documents motion details from named products and exposes no copyable implementation or clear reuse license. Use it only for inspiration and behavior-first recreation without copying brand assets or source."
+    },
+    {
+      "id": "transitions-dev",
+      "name": "Transitions.dev",
+      "status": "active",
+      "auth": "optional",
+      "kind": "code-library",
+      "homepage": "https://transitions.dev/",
+      "routes": {
+        "examples": "https://transitions.dev/",
+        "categories": {
+          "transition": "https://transitions.dev/",
+          "feedback": "https://transitions.dev/",
+          "hover": "https://transitions.dev/",
+          "loading": "https://transitions.dev/",
+          "text": "https://transitions.dev/"
+        }
+      },
+      "capabilities": ["snippet", "package", "recreate", "inspiration"],
+      "stacks": ["css", "javascript", "react"],
+      "tags": ["transition", "feedback", "hover", "text", "accessibility", "css"],
+      "license": {
+        "status": "explicit",
+        "url": "https://transitions.dev/terms.html"
+      },
+      "added_at": "2026-08-18",
+      "last_shallow_check": "2026-08-18",
+      "last_deep_review": "2026-08-18",
+      "access_notes": "Free and Pro transitions can be used and modified in personal or commercial projects after lawful access, but the library or a substantial part may not be repackaged or redistributed. Pro content and CLI delivery require an account or paid plan."
+    },
+    {
+      "id": "originkit",
+      "name": "Originkit",
+      "status": "active",
+      "auth": "optional",
+      "kind": "component-library",
+      "homepage": "https://www.originkit.dev/",
+      "routes": {
+        "examples": "https://www.originkit.dev/",
+        "categories": {
+          "hover": "https://www.originkit.dev/",
+          "text": "https://www.originkit.dev/",
+          "ambient": "https://www.originkit.dev/",
+          "scroll": "https://www.originkit.dev/",
+          "three-d": "https://www.originkit.dev/"
+        }
+      },
+      "capabilities": ["snippet", "package", "recreate", "inspiration"],
+      "stacks": ["framer", "javascript", "react", "webgl"],
+      "tags": ["component", "text", "button", "cursor", "background", "three-d", "webgl"],
+      "license": {
+        "status": "unclear",
+        "url": null
+      },
+      "added_at": "2026-08-18",
+      "last_shallow_check": "2026-08-18",
+      "last_deep_review": "2026-08-18",
+      "access_notes": "Browser review verified the component index, previews, customization controls, and public Copy/Export actions for Framer and React. No clear site-level code license was found, so verify the selected component's terms before copying."
+    },
+    {
+      "id": "pixel-perfect",
+      "name": "Pixel Perfect UI",
+      "status": "active",
+      "auth": "none",
+      "kind": "component-library",
+      "homepage": "https://www.pixel-perfect.space/",
+      "routes": {
+        "examples": "https://www.pixel-perfect.space/blocks"
+      },
+      "capabilities": ["snippet", "recreate", "inspiration"],
+      "stacks": ["css", "javascript", "react", "typescript", "gsap", "webgl"],
+      "tags": ["component", "button", "text", "scroll", "shader", "svg", "background"],
+      "license": {
+        "status": "unclear",
+        "url": null
+      },
+      "added_at": "2026-08-18",
+      "last_shallow_check": "2026-08-18",
+      "last_deep_review": "2026-08-18",
+      "access_notes": "Browser review verified animated React component previews and public Copy actions. The linked public GitHub repository did not expose a license file during review, so treat copying as unavailable until item or repository terms are clarified."
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+interface:
+  display_name: "UI 动效发现与重建"
+  short_description: "快速直达真实案例，视觉深搜并安全重建 UI 动效"
+  default_prompt: "使用 $find-ui-motion 先给我真实案例直达链接，再继续视觉深度匹配；如果想法还模糊，先通过问答帮我收敛方向。"
+policy:
+  allow_implicit_invocation: true

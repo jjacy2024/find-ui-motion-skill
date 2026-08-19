@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "skill_version": "0.8.1",
+  "enabled": true,
+  "manifest_url": "https://raw.githubusercontent.com/jjacy2024/find-ui-motion-catalog/main/manifest.json",
+  "allowed_manifest_hosts": [
+    "github.com",
+    "raw.githubusercontent.com",
+    "objects.githubusercontent.com"
+  ],
+  "allowed_catalog_hosts": [
+    "github.com",
+    "raw.githubusercontent.com",
+    "objects.githubusercontent.com"
+  ],
+  "timeout_seconds": 2.0,
+  "check_interval_hours": 0,
+  "remind_after_hours": 168
+}
