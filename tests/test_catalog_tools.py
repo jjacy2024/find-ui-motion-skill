@@ -14,17 +14,22 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SKILL_ROOT = REPO_ROOT / "skills" / "find-ui-motion"
 SCRIPTS = SKILL_ROOT / "scripts"
+MAINTAINER = REPO_ROOT / "maintainer"
 sys.path.insert(0, str(SCRIPTS))
+sys.path.insert(0, str(MAINTAINER))
 
 from build_evidence_board import prepare_manifest  # noqa: E402
 from build_visual_index import build_index_data  # noqa: E402
-from catalog_lib import load_examples, load_json, load_motions, search_catalog, validate_catalog_data  # noqa: E402
+from catalog_lib import _diversify_examples, load_examples, load_json, load_motions, search_catalog, validate_catalog_data  # noqa: E402
 from check_catalog_update import check_update, validate_manifest  # noqa: E402
 from analyze_motion_media import analyze, extract_dynamic_crops  # noqa: E402
+from classify_source_health import classify_case, classify_manifest  # noqa: E402
 from rank_visual_matches import rank_manifest  # noqa: E402
 from retrieval_fusion import reciprocal_rank_fusion, selective_vlm_decision  # noqa: E402
 from search_visual_index import search_index  # noqa: E402
 from visual_index import late_interaction_scores, load_metadata, load_visual_index, write_metadata, write_visual_index  # noqa: E402
+from curate_examples import curate  # noqa: E402
+from expand_public_sitemaps import _normalize_url  # noqa: E402
 
 
 class CatalogToolsTest(unittest.TestCase):
@@ -52,25 +57,120 @@ class CatalogToolsTest(unittest.TestCase):
         self.assertEqual(errors, [])
         self.assertEqual(motion_errors, [])
         self.assertEqual(example_errors, [])
-        self.assertEqual(len(catalog["sites"]), 14)
+        self.assertEqual(len(catalog["sites"]), 18)
         site_ids = {site["id"] for site in catalog["sites"]}
         self.assertTrue({"uiverse", "unicorn-studio", "lottielab", "design-spells", "transitions-dev", "originkit", "pixel-perfect"} <= site_ids)
+        self.assertTrue({"aceternity-ui", "animate-ui", "21st-dev", "motion-primitives"} <= site_ids)
         self.assertTrue({"hover-css", "codepen", "lottiefiles"}.isdisjoint(site_ids))
-        self.assertGreaterEqual(len(motions), 60)
-        self.assertGreaterEqual(len(examples), 280)
-        self.assertLessEqual(len(examples), 300)
-        self.assertGreaterEqual(len({example["site_id"] for example in examples}), 14)
+        self.assertGreaterEqual(len(motions), 65)
+        self.assertGreaterEqual(len(examples), 3000)
+        self.assertGreaterEqual(len({example["site_id"] for example in examples}), 17)
         self.assertGreaterEqual(len({motion_id for example in examples for motion_id in example["motion_ids"]}), 60)
         self.assertEqual(len({example["id"] for example in examples}), len(examples))
         self.assertEqual(len({example["url"].rstrip("/") for example in examples}), len(examples))
         self.assertTrue(all(example["last_shallow_check"] for example in examples))
-        self.assertGreaterEqual(sum(example["last_verified"] is not None for example in examples), 3)
+        self.assertTrue(all(example["last_verified"] is not None for example in examples))
+        self.assertTrue(all(example.get("verification", {}).get("verified_at") == example["last_verified"] for example in examples))
 
-    def test_near_290_expansion_covers_new_sources_and_missing_families(self):
+    def test_conservative_curation_keeps_only_current_dynamic_evidence(self):
+        checked_at = "2026-08-19"
+
+        def record(case_id, url, site_id="react-bits", evidence=None):
+            value = {"id": case_id, "url": url, "site_id": site_id, "last_verified": None}
+            if evidence is not None:
+                value["source_evidence"] = evidence
+            return value
+
+        rive_evidence = {
+            "kind": "public-list-api",
+            "official_media_url": "https://public.rive.app/community/videos/1.mp4",
+            "runtime_file_url": "https://public.rive.app/community/runtime-files/1.riv",
+            "media_range_verified_at": checked_at,
+            "runtime_range_verified_at": checked_at,
+        }
+        records = [
+            record("rive-dynamic", "https://rive.app/marketplace/1/", "rive-community", rive_evidence),
+            record("duplicate-url", "https://rive.app/marketplace/1", "rive-community", rive_evidence),
+            record("page-dynamic", "https://reactbits.dev/animations/example"),
+            record("static", "https://reactbits.dev/animations/static"),
+            record("broken", "https://reactbits.dev/animations/broken"),
+            record("unknown", "https://reactbits.dev/animations/unknown"),
+        ]
+        audits = {
+            "rive-dynamic": [{
+                "id": "rive-dynamic", "state": "dynamic", "evidence_kind": "official-media-frame-difference",
+                "evidence": {"changed_pixel_ratio": 0.5, "mean_absolute_difference": 12.0},
+            }],
+            "page-dynamic": [{
+                "id": "page-dynamic", "state": "dynamic", "evidence_kind": "browser-page-motion",
+                "target": {"kind": "canvas", "confidence": "explicit"}, "unique_frame_hashes": 2,
+                "running_animations": 0, "video_advanced": False,
+            }],
+            "static": [{"id": "static", "state": "static"}, {"id": "static", "state": "static"}],
+            "broken": [{"id": "broken", "state": "broken"}, {"id": "broken", "state": "broken"}],
+            "unknown": [{"id": "unknown", "state": "unverified"}],
+        }
+        kept, quarantine, report = curate(records, audits, checked_at)
+        self.assertEqual({item["id"] for item in kept}, {"rive-dynamic", "page-dynamic"})
+        self.assertTrue(all(item["last_verified"] == checked_at for item in kept))
+        self.assertEqual(report["removed_exact_duplicates"], 1)
+        reasons = {item["id"]: item["reason"] for item in quarantine}
+        self.assertEqual(reasons["static"], "static-confirmed-twice")
+        self.assertEqual(reasons["broken"], "broken-confirmed-twice")
+        self.assertEqual(reasons["unknown"], "motion-unverified")
+
+    def test_incremental_curation_preserves_prior_verified_cases(self):
+        checked_at = "2026-08-19"
+        existing = {
+            "id": "existing-verified",
+            "site_id": "react-bits",
+            "url": "https://reactbits.dev/animations/existing",
+            "last_verified": "2026-08-18",
+            "verification": {"kind": "browser-page-motion", "verified_at": "2026-08-18"},
+        }
+        candidate = {
+            "id": "new-dynamic",
+            "site_id": "animate-ui",
+            "url": "https://animate-ui.com/docs/components/buttons/ripple",
+            "last_verified": None,
+        }
+        audits = {
+            "new-dynamic": [{
+                "id": "new-dynamic", "state": "dynamic", "evidence_kind": "browser-page-motion",
+                "target": {"kind": "main", "confidence": "semantic"}, "unique_frame_hashes": 2,
+                "running_animations": 1, "video_advanced": False,
+            }],
+        }
+        kept, quarantine, _ = curate(
+            [existing, candidate], audits, checked_at, preserve_current_verified=True
+        )
+        self.assertEqual({item["id"] for item in kept}, {"existing-verified", "new-dynamic"})
+        self.assertEqual(next(item for item in kept if item["id"] == "existing-verified")["last_verified"], "2026-08-18")
+        self.assertEqual(quarantine, [])
+
+    def test_curated_catalog_covers_sources_evidence_and_motion_families(self):
         examples, errors = load_examples(SKILL_ROOT / "references" / "examples.jsonl")
         self.assertEqual(errors, [])
         example_sites = {example["site_id"] for example in examples}
         self.assertTrue({"animista", "lottielab", "rive-community", "unicorn-studio"} <= example_sites)
+        rive_examples = [example for example in examples if example["site_id"] == "rive-community"]
+        expanded_rive = [example for example in rive_examples if example["id"].startswith("rive-marketplace-")]
+        self.assertGreaterEqual(len(rive_examples), 1950)
+        self.assertGreaterEqual(len(expanded_rive), 1900)
+        self.assertTrue(all(example.get("source_evidence", {}).get("kind") == "public-list-api" for example in expanded_rive))
+        self.assertTrue(all(example["source_evidence"]["width"] > 0 for example in expanded_rive))
+        self.assertTrue(all(example["source_evidence"]["height"] > 0 for example in expanded_rive))
+        self.assertTrue(all(example["source_evidence"]["official_media_url"].endswith(".mp4") for example in expanded_rive))
+        self.assertTrue(all(example["source_evidence"]["runtime_file_url"].endswith(".riv") for example in expanded_rive))
+        self.assertTrue(all(example.get("preview_url") == example["source_evidence"]["official_media_url"] for example in expanded_rive))
+        self.assertTrue(all(example["source_evidence"].get("media_range_verified_at") for example in expanded_rive))
+        self.assertTrue(all(example["source_evidence"].get("runtime_range_verified_at") for example in expanded_rive))
+        self.assertTrue(all(example["verification"]["kind"] == "official-media-frame-difference" for example in expanded_rive))
+        self.assertTrue(all(
+            example["verification"]["changed_pixel_ratio"] >= 0.001
+            or example["verification"]["mean_absolute_difference"] >= 0.25
+            for example in expanded_rive
+        ))
         sites_by_motion: dict[str, set[str]] = {}
         for example in examples:
             for motion_id in example["motion_ids"]:
@@ -78,7 +178,7 @@ class CatalogToolsTest(unittest.TestCase):
         expected = {
             "feedback-error-shake": "animista",
             "exit-scale-out": "animista",
-            "loading-spinner": "lottielab",
+            "loading-progress-morph": "lottielab",
             "loading-dots": "lottielab",
             "transition-shared-axis": "react-bits",
         }
@@ -90,6 +190,62 @@ class CatalogToolsTest(unittest.TestCase):
         self.assertTrue(all(example["link_scope"] == "source-with-category-preview" for example in pixel_examples))
         self.assertTrue(all(example["preview_strategy"] == "open-source-only" for example in pixel_examples))
         self.assertTrue(all(example["preview_url"].startswith("https://www.pixel-perfect.space/") for example in pixel_examples))
+
+    def test_public_sitemap_expansion_survives_current_dynamic_audit(self):
+        examples, errors = load_examples(SKILL_ROOT / "references" / "examples.jsonl")
+        self.assertEqual(errors, [])
+        sitemap_examples = [
+            example
+            for example in examples
+            if example.get("source_evidence", {}).get("kind") == "public-sitemap"
+        ]
+        self.assertGreaterEqual(len(sitemap_examples), 590)
+        source_counts = {
+            site_id: sum(example["site_id"] == site_id for example in examples)
+            for site_id in {example["site_id"] for example in examples}
+        }
+        self.assertGreaterEqual(source_counts["react-bits"], 160)
+        self.assertGreaterEqual(source_counts["magic-ui"], 60)
+        self.assertGreaterEqual(source_counts["originkit"], 160)
+        self.assertGreaterEqual(source_counts["design-spells"], 300)
+        self.assertLessEqual(max(source_counts.values()) / len(examples), 0.80)
+        self.assertTrue(all(example["last_verified"] is not None for example in sitemap_examples))
+        self.assertTrue(all(example["verification"]["kind"] == "browser-page-motion" for example in sitemap_examples))
+        self.assertTrue(all(example["source_evidence"]["sitemap_url"].startswith("https://") for example in sitemap_examples))
+        self.assertTrue(all(example["source_evidence"]["discovered_at"] == example["last_shallow_check"] for example in sitemap_examples))
+        self.assertIn("interactive-component-motion", {motion for example in sitemap_examples for motion in example["motion_ids"]})
+        self.assertIn("product-microinteraction", {motion for example in sitemap_examples for motion in example["motion_ids"]})
+        self.assertNotIn("https://magicui.design/docs/components/android", {example["url"] for example in examples})
+        self.assertTrue(any("%27" in example["url"] for example in sitemap_examples if example["site_id"] == "design-spells"))
+
+    def test_public_index_expansion_survives_current_dynamic_audit(self):
+        examples, errors = load_examples(SKILL_ROOT / "references" / "examples.jsonl")
+        self.assertEqual(errors, [])
+        index_examples = [
+            example for example in examples
+            if example.get("source_evidence", {}).get("kind") == "public-index-page"
+        ]
+        self.assertGreaterEqual(len(index_examples), 217)
+        source_counts = {
+            site_id: sum(example["site_id"] == site_id for example in index_examples)
+            for site_id in {example["site_id"] for example in index_examples}
+        }
+        self.assertGreaterEqual(source_counts["aceternity-ui"], 110)
+        self.assertGreaterEqual(source_counts["animate-ui"], 75)
+        self.assertGreaterEqual(source_counts["21st-dev"], 20)
+        self.assertGreaterEqual(source_counts["motion-primitives"], 10)
+        self.assertNotIn("fancy-components", source_counts)
+        self.assertTrue(all(example["last_verified"] is not None for example in index_examples))
+        self.assertTrue(all(example["verification"]["kind"] == "browser-page-motion" for example in index_examples))
+        self.assertTrue(all(example["source_evidence"]["index_url"].startswith("https://") for example in index_examples))
+        self.assertTrue(all(example["source_evidence"]["discovered_at"] == example["last_shallow_check"] for example in index_examples))
+        self.assertTrue(all("/@" in example["url"] and "%40" not in example["url"] for example in index_examples if example["site_id"] == "21st-dev"))
+
+    def test_public_item_url_normalization_preserves_at_sign(self):
+        self.assertEqual(
+            _normalize_url("https://21st.dev/@author/components/animated-hero/"),
+            "https://21st.dev/@author/components/animated-hero",
+        )
 
     def test_trigger_metadata(self):
         skill_text = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
@@ -141,21 +297,78 @@ class CatalogToolsTest(unittest.TestCase):
     def test_exact_example_is_attached_to_matching_motion(self):
         result = search_catalog("SaaS 首页首屏高级安静的进入动效", stack="react", limit=4)
         blur = next(match for match in result["matches"] if match["motion"]["id"] == "entrance-blur-reveal")
-        self.assertEqual(blur["examples"][0]["id"], "magic-ui-blur-fade")
-        self.assertEqual(blur["examples"][0]["url"], "https://magicui.design/docs/components/blur-fade")
+        magic_blur = next(example for example in blur["examples"] if example["id"] == "magic-ui-blur-fade")
+        self.assertEqual(magic_blur["url"], "https://magicui.design/docs/components/blur-fade")
 
     def test_expanded_examples_are_retrievable_beyond_top_three_sites(self):
         checks = {
             "滚动文字逐字揭示": ("scroll-text-scrub", "originkit"),
-            "左右横向画廊": ("scroll-horizontal", "gsap-demos"),
+            "左右横向画廊": ("scroll-horizontal", "magic-ui"),
             "按钮跟随鼠标": ("hover-magnetic", "motion"),
-            "卡片展开成详情": ("transition-container-transform", "gsap-demos"),
+            "卡片展开成详情": ("transition-container-transform", "motion"),
         }
         for query, (motion_id, expected_site) in checks.items():
             result = search_catalog(query, limit=4, examples_per_motion=10)
             match = next(item for item in result["matches"] if item["motion"]["id"] == motion_id)
             self.assertIn(expected_site, {example["site_id"] for example in match["examples"]})
             self.assertTrue(all(example["last_shallow_check"] for example in match["examples"]))
+
+    def test_large_source_is_diversified_before_overflow_fill(self):
+        skill_text = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("Never infer quality from source volume", skill_text)
+        candidates = [
+            {"id": f"rive-{index}", "site_id": "rive-community"}
+            for index in range(10)
+        ] + [
+            {"id": "magic-1", "site_id": "magic-ui"},
+            {"id": "react-1", "site_id": "react-bits"},
+        ]
+        selected = _diversify_examples(candidates, 6)
+        self.assertEqual(len(selected), 6)
+        self.assertIn("magic-ui", {item["site_id"] for item in selected[:4]})
+        self.assertIn("react-bits", {item["site_id"] for item in selected[:4]})
+
+    def test_large_catalog_returns_bounded_deduplicated_candidate_pool(self):
+        result = search_catalog(
+            "交互状态机 按钮 页面转场 加载动效",
+            limit=10,
+            examples_per_motion=20,
+            candidate_limit=64,
+        )
+        candidates = result["candidate_pool"]
+        self.assertGreaterEqual(len(candidates), 48)
+        self.assertLessEqual(len(candidates), 64)
+        self.assertEqual(len({item["id"] for item in candidates}), len(candidates))
+        self.assertEqual(len({item["url"].rstrip("/") for item in candidates}), len(candidates))
+        self.assertTrue(all(item["matched_motion_ids"] for item in candidates))
+        self.assertTrue(all(isinstance(item["recall_score"], float) for item in candidates))
+
+        default_result = search_catalog("interactions loading transition", limit=10, examples_per_motion=20)
+        self.assertLessEqual(len(default_result["candidate_pool"]), 48)
+
+    def test_candidate_pool_only_cli_avoids_duplicate_match_payload(self):
+        completed = subprocess.run(
+            [
+                sys.executable,
+                str(SCRIPTS / "search_catalog.py"),
+                "gradient glow background motion",
+                "--limit",
+                "10",
+                "--examples-per-motion",
+                "20",
+                "--candidate-limit",
+                "64",
+                "--candidate-pool-only",
+                "--json",
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        payload = json.loads(completed.stdout)
+        self.assertNotIn("matches", payload)
+        self.assertGreaterEqual(len(payload["candidate_pool"]), 48)
+        self.assertLessEqual(len(payload["candidate_pool"]), 64)
 
     def test_real_example_followups_require_pagination_and_deduplication(self):
         skill_text = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
@@ -176,6 +389,7 @@ class CatalogToolsTest(unittest.TestCase):
         skill_text = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
         deep_rules = (SKILL_ROOT / "references" / "visual-deep-match.md").read_text(encoding="utf-8")
         preview_rules = (SKILL_ROOT / "references" / "source-preview.md").read_text(encoding="utf-8")
+        health_rules = (SKILL_ROOT / "references" / "source-health.md").read_text(encoding="utf-8")
 
         for rule in (
             "exactly eight eligible concrete case links by default",
@@ -187,8 +401,12 @@ class CatalogToolsTest(unittest.TestCase):
             self.assertIn(rule, skill_text)
         for rule in (
             "停止深度匹配",
-            "12-20 unique concrete item URLs",
-            "20 candidates",
+            "Build and fix the cross-source catalog pool before opening any candidate page",
+            "Do not start from one site's category page",
+            "Recall 48 unique concrete item URLs by default and use at most 64",
+            "Use `--candidate-limit 48` normally",
+            "24 candidates have received current browser health checks",
+            "16 healthy candidates have been captured and analyzed",
             "three consecutive candidates",
             "OpenCLIP full-frame similarity",
             "Reciprocal Rank Fusion",
@@ -196,10 +414,22 @@ class CatalogToolsTest(unittest.TestCase):
             "Return exactly eight eligible results by default",
             "never merely for brevity",
             "Do not show fake precision",
-            "已检查 4/12",
+            "召回 48/64",
+            "实时检查 12/24",
+            "捕获 8/16",
         ):
             self.assertIn(rule, deep_rules)
         self.assertIn("Build a board only when the user explicitly requests", preview_rules)
+        for rule in (
+            "outer-page request proves only",
+            "shell_reachable",
+            "render_verified",
+            "capture_restricted",
+            "broken",
+            "Never infer health from HTTP 200",
+            "Never use `open-source-only` to rescue a `broken` item",
+        ):
+            self.assertIn(rule, health_rules)
 
         retrieval_rules = (SKILL_ROOT / "references" / "visual-retrieval.md").read_text(encoding="utf-8")
         for rule in (
@@ -211,6 +441,95 @@ class CatalogToolsTest(unittest.TestCase):
             "status=degraded",
         ):
             self.assertIn(rule, retrieval_rules)
+
+    def test_source_health_rejects_wrapper_200_with_missing_project_data(self):
+        result = classify_case(
+            {
+                "id": "missing-project",
+                "outer_status": 200,
+                "settled": True,
+                "expects_render_target": True,
+                "critical_responses": [{"label": "project-data", "status": 404}],
+                "console_errors": ["Error fetching data for project id 'missing-project'"],
+                "render_targets": [],
+                "capture_attempted": True,
+                "capture_succeeded": False,
+                "analysis_depth": "metadata-only",
+            }
+        )
+        self.assertEqual(result["state"], "broken")
+        self.assertFalse(result["quick_eligible"])
+        self.assertFalse(result["deep_eligible"])
+        self.assertIn("critical-status-404", result["reasons"])
+        self.assertIn("missing-render-target-after-settle", result["reasons"])
+
+    def test_source_health_distinguishes_render_capture_and_shell_states(self):
+        manifest = {
+            "cases": [
+                {
+                    "id": "working-canvas",
+                    "outer_status": 200,
+                    "settled": True,
+                    "expects_render_target": True,
+                    "critical_responses": [{"label": "project-data", "status": 200}],
+                    "render_targets": [{"kind": "canvas", "visible": True, "width": 1280, "height": 720}],
+                    "capture_attempted": True,
+                    "capture_succeeded": True,
+                    "analysis_depth": "keyframes",
+                },
+                {
+                    "id": "capture-blocked",
+                    "outer_status": 200,
+                    "settled": True,
+                    "visually_observed": True,
+                    "capture_attempted": True,
+                    "capture_succeeded": False,
+                },
+                {
+                    "id": "wrapper-only",
+                    "outer_status": 200,
+                    "settled": False,
+                },
+            ]
+        }
+        result = classify_manifest(manifest)
+        by_id = {item["id"]: item for item in result["results"]}
+        self.assertEqual(by_id["working-canvas"]["state"], "render_verified")
+        self.assertTrue(by_id["working-canvas"]["quick_eligible"])
+        self.assertTrue(by_id["working-canvas"]["deep_eligible"])
+        self.assertEqual(by_id["capture-blocked"]["state"], "capture_restricted")
+        self.assertTrue(by_id["capture-blocked"]["quick_eligible"])
+        self.assertFalse(by_id["capture-blocked"]["deep_eligible"])
+        self.assertEqual(by_id["wrapper-only"]["state"], "shell_reachable")
+        self.assertFalse(by_id["wrapper-only"]["quick_eligible"])
+        self.assertEqual(result["quick_eligible_count"], 2)
+
+    def test_source_health_requires_consistent_capture_signals(self):
+        with self.assertRaisesRegex(ValueError, "capture_succeeded requires"):
+            classify_case(
+                {
+                    "id": "invalid-capture",
+                    "outer_status": 200,
+                    "capture_attempted": False,
+                    "capture_succeeded": True,
+                }
+            )
+
+    def test_source_health_cli_regression_fixture(self):
+        fixture = REPO_ROOT / "tests" / "fixtures" / "source-health-wrapper-200-inner-404.json"
+        completed = subprocess.run(
+            [sys.executable, str(SCRIPTS / "classify_source_health.py"), str(fixture)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(completed.returncode, 1, completed.stdout + completed.stderr)
+        result = json.loads(completed.stdout)
+        by_id = {item["id"]: item for item in result["results"]}
+        self.assertEqual(by_id["unicorn-studio-fluted-gradient"]["state"], "render_verified")
+        self.assertTrue(by_id["unicorn-studio-fluted-gradient"]["quick_eligible"])
+        self.assertEqual(by_id["unicorn-studio-blue-noise"]["state"], "broken")
+        self.assertFalse(by_id["unicorn-studio-blue-noise"]["quick_eligible"])
 
     def test_visual_ranking_is_bounded_sorted_and_excludes_metadata_only(self):
         candidates = [

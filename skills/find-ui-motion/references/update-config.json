@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "skill_version": "0.8.1",
+  "skill_version": "0.8.2",
   "enabled": true,
   "manifest_url": "https://raw.githubusercontent.com/jjacy2024/find-ui-motion-catalog/main/manifest.json",
   "allowed_manifest_hosts": [

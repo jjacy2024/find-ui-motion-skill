@@ -19,6 +19,12 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--limit", type=int, default=6)
     result.add_argument("--sites-per-motion", type=int, default=3)
     result.add_argument("--examples-per-motion", type=int, default=10)
+    result.add_argument("--candidate-limit", type=int, default=48, help="Deduplicated staged-recall pool, default 48 and maximum 64")
+    result.add_argument(
+        "--candidate-pool-only",
+        action="store_true",
+        help="With --json, emit only the deduplicated candidate pool and catalog provenance",
+    )
     result.add_argument("--json", action="store_true", help="Emit JSON instead of readable text")
     return result
 
@@ -52,6 +58,12 @@ def render_text(data: dict) -> str:
                     + f"trigger={example['trigger']['kind']} | source={example['url']} | "
                     + f"category-preview={example['preview_url']}"
                 )
+            elif example.get("preview_strategy") == "official-media" and example.get("preview_url"):
+                lines.append(
+                    "   * "
+                    + f"exact example: {example['title']} | evidence=official-media | "
+                    + f"trigger={example['trigger']['kind']} | watch={example['preview_url']} | source={example['url']}"
+                )
             else:
                 lines.append(
                     "   * "
@@ -72,6 +84,10 @@ def main() -> int:
         raise SystemExit("--sites-per-motion must be between 1 and 10")
     if args.examples_per_motion < 1 or args.examples_per_motion > 20:
         raise SystemExit("--examples-per-motion must be between 1 and 20")
+    if args.candidate_limit < 1 or args.candidate_limit > 64:
+        raise SystemExit("--candidate-limit must be between 1 and 64")
+    if args.candidate_pool_only and not args.json:
+        raise SystemExit("--candidate-pool-only requires --json")
     try:
         data = search_catalog(
             args.query,
@@ -81,12 +97,25 @@ def main() -> int:
             limit=args.limit,
             sites_per_motion=args.sites_per_motion,
             examples_per_motion=args.examples_per_motion,
+            candidate_limit=args.candidate_limit,
         )
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         print(json.dumps({"status": "error", "error": str(exc)}, ensure_ascii=False), file=sys.stderr)
         return 2
     if args.json:
-        print(json.dumps(data, ensure_ascii=False, indent=2))
+        if args.candidate_pool_only:
+            data = {
+                "query": data["query"],
+                "filters": data["filters"],
+                "catalog_version": data["catalog_version"],
+                "catalog_source": data["catalog_source"],
+                "example_source": data["example_source"],
+                "catalog_warnings": data["catalog_warnings"],
+                "candidate_pool": data["candidate_pool"],
+            }
+            print(json.dumps(data, ensure_ascii=False, separators=(",", ":")))
+        else:
+            print(json.dumps(data, ensure_ascii=False, indent=2))
     else:
         print(render_text(data), end="")
     return 0

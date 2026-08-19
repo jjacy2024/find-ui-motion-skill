@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Shallow-check concrete example URLs without changing verification dates."""
+"""Shallow-check example wrappers without claiming item-content eligibility."""
 
 from __future__ import annotations
 
@@ -42,7 +42,7 @@ def classify_redirect(url: str, final_url: str) -> str:
     final_host, final_path = canonical_path(final_url)
     if final_host != original_host or (original_path != "/" and final_path == "/"):
         return "redirected-away"
-    return "ok"
+    return "shell-reachable"
 
 
 def check_with_curl(record: dict[str, Any], timeout: float, original_error: Exception) -> dict[str, Any] | None:
@@ -100,6 +100,7 @@ def check_with_curl(record: dict[str, Any], timeout: float, original_error: Exce
         "final_url": final_url,
         "transport": "curl-fallback",
         "urllib_error": str(original_error),
+        "quick_eligible": False,
     }
     if marker is not None:
         response["restriction_marker"] = marker
@@ -125,18 +126,26 @@ def check(record: dict[str, Any], timeout: float) -> dict[str, Any]:
         marker = restriction_marker(body)
         if marker is not None:
             state = "restricted"
-        result = {"id": record["id"], "site_id": record["site_id"], "url": url, "status": status, "state": state, "final_url": final_url}
+        result = {
+            "id": record["id"],
+            "site_id": record["site_id"],
+            "url": url,
+            "status": status,
+            "state": state,
+            "final_url": final_url,
+            "quick_eligible": False,
+        }
         if marker is not None:
             result["restriction_marker"] = marker
         return result
     except HTTPError as exc:
         state = "restricted" if exc.code in {401, 403, 429} else "missing" if exc.code in {404, 410} else "http-error"
-        return {"id": record["id"], "site_id": record["site_id"], "url": url, "status": exc.code, "state": state}
+        return {"id": record["id"], "site_id": record["site_id"], "url": url, "status": exc.code, "state": state, "quick_eligible": False}
     except Exception as exc:
         fallback = check_with_curl(record, timeout, exc)
         if fallback is not None:
             return fallback
-        return {"id": record["id"], "site_id": record["site_id"], "url": url, "status": None, "state": "unreachable", "error": str(exc)}
+        return {"id": record["id"], "site_id": record["site_id"], "url": url, "status": None, "state": "unreachable", "error": str(exc), "quick_eligible": False}
 
 
 def main() -> int:
@@ -164,7 +173,18 @@ def main() -> int:
     counts: dict[str, int] = {}
     for result in results:
         counts[result["state"]] = counts.get(result["state"], 0) + 1
-    print(json.dumps({"checked": len(results), "states": counts, "results": results}, ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            {
+                "checked": len(results),
+                "states": counts,
+                "results": results,
+                "note": "Outer-wrapper HTTP evidence only. quick_eligible is always false until the browser source-health gate passes.",
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
     return 1 if counts.get("missing", 0) or counts.get("redirected-away", 0) else 0
 
 

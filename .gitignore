@@ -5,3 +5,4 @@ __pycache__/
 preview-smoke.html
 preview-smoke.png
 .pytest_cache/
+maintainer/audits/

@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "catalog_version": "2026.08.5",
-  "generated_at": "2026-08-19T03:40:30Z",
+  "catalog_version": "2026.08.8",
+  "generated_at": "2026-08-19T12:20:17Z",
   "sites": [
     {
       "id": "motion",
@@ -27,9 +27,122 @@
         "url": "https://github.com/motiondivision/motion/blob/main/LICENSE.md"
       },
       "added_at": "2026-08-18",
-      "last_shallow_check": "2026-08-18",
+      "last_shallow_check": "2026-08-19",
       "last_deep_review": null,
       "access_notes": "Examples route returned HTTP 200 during shallow verification; verify the selected example and current terms live."
+    },
+    {
+      "id": "aceternity-ui",
+      "name": "Aceternity UI",
+      "status": "active",
+      "auth": "none",
+      "kind": "component-library",
+      "homepage": "https://ui.aceternity.com/",
+      "routes": {
+        "examples": "https://ui.aceternity.com/components",
+        "categories": {
+          "ambient": "https://ui.aceternity.com/components",
+          "hover": "https://ui.aceternity.com/components",
+          "scroll": "https://ui.aceternity.com/components",
+          "text": "https://ui.aceternity.com/components",
+          "three-d": "https://ui.aceternity.com/components"
+        }
+      },
+      "capabilities": ["snippet", "recreate", "inspiration"],
+      "stacks": ["react", "typescript", "tailwind"],
+      "tags": ["component", "background", "hover", "scroll", "text", "three-d", "webgl"],
+      "license": {
+        "status": "unclear",
+        "url": null
+      },
+      "added_at": "2026-08-19",
+      "last_shallow_check": "2026-08-19",
+      "last_deep_review": "2026-08-19",
+      "access_notes": "The public components index and three representative animated item pages rendered in a normal Chrome session on 2026-08-19. Verify the selected item's current copy path, dependencies, and terms before reuse."
+    },
+    {
+      "id": "animate-ui",
+      "name": "Animate UI",
+      "status": "active",
+      "auth": "none",
+      "kind": "component-library",
+      "homepage": "https://animate-ui.com/",
+      "routes": {
+        "examples": "https://animate-ui.com/docs/components",
+        "categories": {
+          "feedback": "https://animate-ui.com/docs/components",
+          "transition": "https://animate-ui.com/docs/primitives",
+          "text": "https://animate-ui.com/docs/primitives",
+          "ambient": "https://animate-ui.com/docs/components"
+        }
+      },
+      "capabilities": ["snippet", "package", "recreate", "inspiration"],
+      "stacks": ["react", "typescript", "tailwind"],
+      "tags": ["component", "primitive", "feedback", "transition", "text", "background"],
+      "license": {
+        "status": "restricted",
+        "url": "https://github.com/imskyleen/animate-ui/blob/main/LICENSE.md"
+      },
+      "added_at": "2026-08-19",
+      "last_shallow_check": "2026-08-19",
+      "last_deep_review": "2026-08-19",
+      "access_notes": "The official component and primitive indexes and ten representative item demos rendered on 2026-08-19. The repository license is MIT plus Commons Clause; do not resell or redistribute the components themselves."
+    },
+    {
+      "id": "21st-dev",
+      "name": "21st.dev",
+      "status": "active",
+      "auth": "optional",
+      "kind": "community",
+      "homepage": "https://21st.dev/",
+      "routes": {
+        "examples": "https://21st.dev/community/components",
+        "categories": {
+          "ambient": "https://21st.dev/community/components/s/background",
+          "entrance": "https://21st.dev/community/components/s/animated-hero",
+          "hover": "https://21st.dev/community/components/s/button",
+          "text": "https://21st.dev/community/components/s/text"
+        }
+      },
+      "capabilities": ["snippet", "recreate", "inspiration"],
+      "stacks": ["react", "typescript", "tailwind"],
+      "tags": ["community", "component", "background", "hero", "hover", "text"],
+      "license": {
+        "status": "item-specific",
+        "url": "https://21st.dev/terms"
+      },
+      "added_at": "2026-08-19",
+      "last_shallow_check": "2026-08-19",
+      "last_deep_review": "2026-08-19",
+      "access_notes": "Public category pages expose exact author-owned component permalinks. Seven of ten representative item pages showed visible motion on 2026-08-19; verify each author implementation, dependency set, and reuse terms."
+    },
+    {
+      "id": "motion-primitives",
+      "name": "Motion Primitives",
+      "status": "active",
+      "auth": "none",
+      "kind": "component-library",
+      "homepage": "https://motion-primitives.com/",
+      "routes": {
+        "examples": "https://motion-primitives.com/docs",
+        "categories": {
+          "feedback": "https://motion-primitives.com/docs",
+          "transition": "https://motion-primitives.com/docs",
+          "scroll": "https://motion-primitives.com/docs/scroll-progress",
+          "text": "https://motion-primitives.com/docs/text-effect"
+        }
+      },
+      "capabilities": ["snippet", "package", "recreate", "inspiration"],
+      "stacks": ["react", "typescript"],
+      "tags": ["primitive", "transition", "scroll", "text", "hover", "motion"],
+      "license": {
+        "status": "unclear",
+        "url": null
+      },
+      "added_at": "2026-08-19",
+      "last_shallow_check": "2026-08-19",
+      "last_deep_review": "2026-08-19",
+      "access_notes": "The public docs index was rediscovered after the security-policy update, and ten exact item pages showed current visible motion on 2026-08-19. Verify package terms, dependencies, and the selected public code path before reuse."
     },
     {
       "id": "gsap-demos",
@@ -55,9 +168,9 @@
         "url": "https://gsap.com/community/standard-license/"
       },
       "added_at": "2026-08-18",
-      "last_shallow_check": "2026-08-18",
-      "last_deep_review": null,
-      "access_notes": "Demos route and current standard-license page returned HTTP 200; verify the chosen demo terms live."
+      "last_shallow_check": "2026-08-20",
+      "last_deep_review": "2026-08-20",
+      "access_notes": "The public Demo Hub and 29 exact demo pages were re-audited after the security-policy update; all 29 rendered current non-zero video previews with observed frame change on 2026-08-20. Verify the selected demo, plugins, and current GSAP license before reuse."
     },
     {
       "id": "animista",
@@ -159,9 +272,9 @@
         "url": "https://tympanus.net/codrops/licensing/"
       },
       "added_at": "2026-08-18",
-      "last_shallow_check": "2026-08-18",
-      "last_deep_review": null,
-      "access_notes": "Homepage and licensing page returned HTTP 200; individual demos may use different terms."
+      "last_shallow_check": "2026-08-20",
+      "last_deep_review": "2026-08-20",
+      "access_notes": "Ten exact Codrops articles or official demo pages currently render verified motion, including WebGL, typography, cursor, transition, and dissolve cases. Individual demos may use different code and asset terms; verify the linked article, repository, and item license before reuse."
     },
     {
       "id": "rive-community",
@@ -209,9 +322,9 @@
         "url": "https://opensource.org/license/mit"
       },
       "added_at": "2026-08-18",
-      "last_shallow_check": null,
-      "last_deep_review": "2026-08-18",
-      "access_notes": "Automated requests returned HTTP 403, but browser review verified public Get code actions and the site's statement that UI elements use the MIT License. Verify the selected element and attribution requirements live."
+      "last_shallow_check": "2026-08-20",
+      "last_deep_review": "2026-08-20",
+      "access_notes": "Browser discovery selected favorites-ranked buttons, loaders, cards, toggles, and checkboxes; 21 exact item pages now have current motion evidence. Some automated outer requests still report HTTP 403 while the named public item renders, so verify the live item and MIT notice before reuse."
     },
     {
       "id": "unicorn-studio",
@@ -314,9 +427,9 @@
         "url": "https://transitions.dev/terms.html"
       },
       "added_at": "2026-08-18",
-      "last_shallow_check": "2026-08-18",
-      "last_deep_review": "2026-08-18",
-      "access_notes": "Free and Pro transitions can be used and modified in personal or commercial projects after lawful access, but the library or a substantial part may not be repackaged or redistributed. Pro content and CLI delivery require an account or paid plan."
+      "last_shallow_check": "2026-08-20",
+      "last_deep_review": "2026-08-20",
+      "access_notes": "Twenty-seven exact public non-Pro preview pages currently render verified motion across layout, feedback, loading, hover, text, and state transitions. Free and Pro transitions can be used and modified after lawful access, but the library or a substantial part may not be repackaged or redistributed."
     },
     {
       "id": "originkit",

@@ -408,6 +408,69 @@ def load_examples(
                     errors.append(f"{prefix}: unsupported rights.status")
                 if not isinstance(rights.get("note"), str) or not rights["note"].strip():
                     errors.append(f"{prefix}: rights.note must be a non-empty string")
+            search_terms = record.get("search_terms")
+            if search_terms is not None and (
+                not isinstance(search_terms, list)
+                or not all(isinstance(item, str) and item for item in search_terms)
+            ):
+                errors.append(f"{prefix}: search_terms must be a string array when present")
+            source_evidence = record.get("source_evidence")
+            if source_evidence is not None:
+                if not isinstance(source_evidence, dict):
+                    errors.append(f"{prefix}: source_evidence must be an object when present")
+                else:
+                    evidence_kind = source_evidence.get("kind")
+                    if evidence_kind == "public-list-api":
+                        if not is_https_url(source_evidence.get("official_media_url", "")):
+                            errors.append(f"{prefix}: source_evidence.official_media_url must be HTTPS")
+                        if not is_https_url(source_evidence.get("runtime_file_url", "")):
+                            errors.append(f"{prefix}: source_evidence.runtime_file_url must be HTTPS")
+                        for dimension in ("width", "height"):
+                            value = source_evidence.get(dimension)
+                            if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
+                                errors.append(f"{prefix}: source_evidence.{dimension} must be positive")
+                        for checked_field in ("media_range_verified_at", "runtime_range_verified_at"):
+                            checked_value = source_evidence.get(checked_field)
+                            if checked_value is not None and not _valid_date(checked_value):
+                                errors.append(f"{prefix}: source_evidence.{checked_field} must be YYYY-MM-DD when present")
+                    elif evidence_kind == "public-sitemap":
+                        if not is_https_url(source_evidence.get("sitemap_url", "")):
+                            errors.append(f"{prefix}: source_evidence.sitemap_url must be HTTPS")
+                        if not _valid_date(source_evidence.get("discovered_at")):
+                            errors.append(f"{prefix}: source_evidence.discovered_at must be YYYY-MM-DD")
+                    elif evidence_kind == "public-index-page":
+                        if not is_https_url(source_evidence.get("index_url", "")):
+                            errors.append(f"{prefix}: source_evidence.index_url must be HTTPS")
+                        if not _valid_date(source_evidence.get("discovered_at")):
+                            errors.append(f"{prefix}: source_evidence.discovered_at must be YYYY-MM-DD")
+                    else:
+                        errors.append(f"{prefix}: unsupported source_evidence.kind")
+            verification = record.get("verification")
+            if verification is not None:
+                if not isinstance(verification, dict):
+                    errors.append(f"{prefix}: verification must be an object when present")
+                else:
+                    verification_kind = verification.get("kind")
+                    if verification_kind not in {"official-media-frame-difference", "browser-page-motion"}:
+                        errors.append(f"{prefix}: unsupported verification.kind")
+                    if not _valid_date(verification.get("verified_at")):
+                        errors.append(f"{prefix}: verification.verified_at must be YYYY-MM-DD")
+                    if verification_kind == "official-media-frame-difference":
+                        ratio = verification.get("changed_pixel_ratio")
+                        difference = verification.get("mean_absolute_difference")
+                        if isinstance(ratio, bool) or not isinstance(ratio, (int, float)) or not 0 <= ratio <= 1:
+                            errors.append(f"{prefix}: verification.changed_pixel_ratio must be from 0 to 1")
+                        if isinstance(difference, bool) or not isinstance(difference, (int, float)) or difference < 0:
+                            errors.append(f"{prefix}: verification.mean_absolute_difference must be non-negative")
+                    elif verification_kind == "browser-page-motion":
+                        if verification.get("target_confidence") not in {"explicit", "semantic", "fallback"}:
+                            errors.append(f"{prefix}: unsupported verification.target_confidence")
+                        for count_field in ("unique_frame_hashes", "running_animations"):
+                            value = verification.get(count_field)
+                            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                                errors.append(f"{prefix}: verification.{count_field} must be a non-negative integer")
+                        if not isinstance(verification.get("video_advanced"), bool):
+                            errors.append(f"{prefix}: verification.video_advanced must be boolean")
             if not _valid_date(record["last_shallow_check"]):
                 errors.append(f"{prefix}: last_shallow_check must be YYYY-MM-DD")
             if not _valid_date(record["last_verified"], allow_null=True):
@@ -485,6 +548,40 @@ def _motion_score(query: str, motion: dict[str, Any]) -> float:
     return round(score, 3)
 
 
+def _example_score(query: str, example: dict[str, Any]) -> float:
+    query_norm = normalize_text(query)
+    query_units = text_units(query)
+    values: list[tuple[str, float]] = [(str(example.get("title", "")), 4.0)]
+    values.extend((str(value), 1.5) for value in example.get("search_terms", []) if isinstance(value, str))
+    score = 0.0
+    for value, weight in values:
+        normalized = normalize_text(value)
+        if normalized and normalized in query_norm:
+            score += weight * 4
+        score += weight * len(query_units & text_units(value))
+    return round(score, 3)
+
+
+def _diversify_examples(examples: list[dict[str, Any]], limit: int) -> list[dict[str, Any]]:
+    if len(examples) <= limit:
+        return examples
+    first_pass_cap = max(2, (limit + 2) // 3)
+    selected: list[dict[str, Any]] = []
+    deferred: list[dict[str, Any]] = []
+    site_counts: dict[str, int] = {}
+    for example in examples:
+        site_id = example["site_id"]
+        if site_counts.get(site_id, 0) < first_pass_cap:
+            selected.append(example)
+            site_counts[site_id] = site_counts.get(site_id, 0) + 1
+        else:
+            deferred.append(example)
+        if len(selected) == limit:
+            return selected
+    selected.extend(deferred[: limit - len(selected)])
+    return selected
+
+
 def _site_url(site: dict[str, Any], motion: dict[str, Any]) -> str:
     routes = site["routes"]
     query = motion["search_terms"][0]
@@ -534,9 +631,12 @@ def search_catalog(
     limit: int = 6,
     sites_per_motion: int = 3,
     examples_per_motion: int = 10,
+    candidate_limit: int = 48,
 ) -> dict[str, Any]:
     if not 1 <= examples_per_motion <= 20:
         raise ValueError("examples_per_motion must be between 1 and 20")
+    if not 1 <= candidate_limit <= 64:
+        raise ValueError("candidate_limit must be between 1 and 64")
     catalog, source, warnings = load_effective_catalog()
     motions, motion_errors = load_motions()
     if motion_errors:
@@ -587,13 +687,42 @@ def search_catalog(
         motion_examples.sort(
             key=lambda example: (
                 example["last_verified"] is None,
+                -_example_score(query, example),
                 -site_score_by_id[example["site_id"]],
                 -int(example["last_shallow_check"].replace("-", "")),
                 example["id"],
             )
         )
-        motion_examples = motion_examples[:examples_per_motion]
+        motion_examples = _diversify_examples(motion_examples, examples_per_motion)
         matches.append({"motion": motion, "score": score, "sites": sites, "examples": motion_examples})
+
+    pooled: dict[str, dict[str, Any]] = {}
+    for match in matches:
+        for example in match["examples"]:
+            candidate = pooled.setdefault(
+                example["id"],
+                {
+                    **example,
+                    "matched_motion_ids": [],
+                    "recall_score": 0.0,
+                },
+            )
+            if match["motion"]["id"] not in candidate["matched_motion_ids"]:
+                candidate["matched_motion_ids"].append(match["motion"]["id"])
+            candidate["recall_score"] = max(
+                candidate["recall_score"],
+                round(float(match["score"]) + _example_score(query, example), 3),
+            )
+    candidate_pool = sorted(
+        pooled.values(),
+        key=lambda example: (
+            example["last_verified"] is None,
+            -example["recall_score"],
+            -int(example["last_shallow_check"].replace("-", "")),
+            example["id"],
+        ),
+    )
+    candidate_pool = _diversify_examples(candidate_pool, candidate_limit)
 
     return {
         "query": query,
@@ -603,4 +732,5 @@ def search_catalog(
         "example_source": example_source,
         "catalog_warnings": warnings,
         "matches": matches,
+        "candidate_pool": candidate_pool,
     }

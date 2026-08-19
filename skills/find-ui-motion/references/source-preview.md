@@ -18,15 +18,18 @@ Never attach a source site, item title, or source URL to `local-synthesis`. Neve
 
 1. Shortlist motion directions with `scripts/search_catalog.py` before browsing.
 2. Prefer a matching item from `references/examples.jsonl`.
-3. If no indexed item fits, open the selected site's category route and choose one visible item whose behavior matches. Record its exact item URL; do not retain a category page as the item source.
-4. When a publisher exposes no item permalink, keep the exact official source file as `url`, add the public category as `preview_url`, set `link_scope: source-with-category-preview`, and use `open-source-only`. Show both links and say that the preview is a category locator, not a direct or visually verified item link.
-5. For a user-facing evidence comparison, live-verify no more than three examples unless the user asks for more. The separate visual-deep-match workflow may inspect a bounded 12-20-item candidate pool for ranking.
+3. Read [source-health.md](source-health.md), wait for the current `settle_ms`, and verify that the named item or its exact `official-media` preview renders. A wrapper HTTP 200 or successful Range request is not visual availability.
+4. If no indexed item fits, open the selected site's category route and choose one visible item whose behavior matches. Record its exact item URL; do not retain a category page as the item source.
+5. When a publisher exposes no item permalink, keep the exact official source file as `url`, add the public category as `preview_url`, set `link_scope: source-with-category-preview`, and use `open-source-only`. Show both links and say that the preview is a category locator, not a direct or visually verified item link.
+6. For a user-facing evidence comparison, live-verify no more than three examples unless the user asks for more. The separate visual-deep-match workflow may recall at most 64 items, live-check at most 24, and capture at most 16 for ranking.
 
-Interpret example dates precisely: `last_shallow_check` confirms only that the exact public item URL remained reachable; `last_verified` is non-null only after the current visible motion was observed or triggered on that item. Never call a shallow-only record live-verified.
+Interpret example dates precisely: `last_shallow_check` confirms only that the exact public item wrapper remained reachable; it does not make the item quick-link eligible. `last_verified` is non-null only after the current visible motion was observed or triggered on that item. Never call a shallow-only record live-verified.
 
 ## Return direct links before media
 
-For the quick pass, show exactly eight eligible concrete item links by default and never more than ten when explicitly requested. Reduce below eight only when fewer unique, relevant, accessible item cases satisfy the current filters; return every eligible remainder and state the shortfall reason. Never pad with duplicates, category routes, inaccessible items, or weak matches. Keep each item to a linked title and one sentence. Mark links that have not yet been visually reviewed as `快速初筛`.
+For the quick pass, show exactly eight eligible concrete item links by default and never more than ten when explicitly requested. Require `render_verified` or `capture_restricted` from the current source-health gate. Reduce below eight when fewer unique, relevant, content-healthy cases satisfy the current filters; return every eligible remainder and state the shortfall reason. Never pad with duplicates, category routes, inaccessible items, shell-only pages, broken items, or weak matches. Keep each item to a linked title and one sentence. Mark links that have not yet been visually reviewed as `快速初筛`.
+
+When an exact record supplies a current `official-media` `preview_url`, link the title to that URL as `观看动效` and keep the catalog `url` beside it as `来源页`. Live-observe the official preview before eligibility. If the source page is unavailable but the exact official preview renders, say so on that item instead of sending the user to the empty page.
 
 Do not use a category, search, collection, or homepage as if it were a direct case result. Put a useful non-item route under `继续探索入口`. For `source-with-category-preview`, show `查看官网分类预览` beside the exact source link and state that the user must locate the named case there. Do not create a board or static screenshot page merely to bridge the user to a source that already has a direct item URL.
 
@@ -53,7 +56,8 @@ Prefer evidence in this order:
 
 1. Use an official GIF, video, Lottie, Rive, or official interactive preview when the source intentionally exposes it and current terms allow local viewing.
 2. Otherwise open the exact item in an available browser, capture a rest state, perform the visible trigger, then capture the peak or settled state. Create a 3-5 second clip when recording is available; otherwise create a storyboard with at least two real states.
-3. If capture is blocked, restricted, or misleading, use `open-source-only` and put the exact live page in front of the user.
+3. If capture fails, inspect critical item-data responses, console errors, and the expected render target before choosing a fallback. Classify missing data or an absent settled render target as `broken` and exclude it.
+4. Use `open-source-only` only when the exact item visibly exists but capture is restricted or when `source-with-category-preview` resolves the named case. Never use it for an empty or broken page.
 
 For hover, include the pointer-away rest state and the settled hover state. For click, capture before and after. For scroll or mount, reload or use the page's replay control only when it is publicly exposed. Do not modify the page to manufacture a state.
 

@@ -1,0 +1,49 @@
+{
+  "cases": [
+    {
+      "id": "unicorn-studio-fluted-gradient",
+      "outer_status": 200,
+      "settled": true,
+      "expects_render_target": true,
+      "critical_responses": [
+        {
+          "label": "project-data",
+          "status": 200
+        }
+      ],
+      "console_errors": [],
+      "render_targets": [
+        {
+          "kind": "canvas",
+          "visible": true,
+          "width": 1280,
+          "height": 720
+        }
+      ],
+      "visually_observed": true,
+      "capture_attempted": true,
+      "capture_succeeded": true,
+      "analysis_depth": "keyframes"
+    },
+    {
+      "id": "unicorn-studio-blue-noise",
+      "outer_status": 200,
+      "settled": true,
+      "expects_render_target": true,
+      "critical_responses": [
+        {
+          "label": "project-data",
+          "status": 404
+        }
+      ],
+      "console_errors": [
+        "Error fetching data for project id 'VUOxTJi3SRZU0OZdFa6h'"
+      ],
+      "render_targets": [],
+      "visually_observed": false,
+      "capture_attempted": true,
+      "capture_succeeded": false,
+      "analysis_depth": "metadata-only"
+    }
+  ]
+}
