@@ -20,7 +20,7 @@ sys.path.insert(0, str(MAINTAINER))
 
 from build_evidence_board import prepare_manifest  # noqa: E402
 from build_visual_index import build_index_data  # noqa: E402
-from catalog_lib import _diversify_examples, load_examples, load_json, load_motions, search_catalog, validate_catalog_data  # noqa: E402
+from catalog_lib import _diversify_examples, load_examples, load_json, load_motions, load_query_expansions, search_catalog, validate_catalog_data  # noqa: E402
 from check_catalog_update import check_update, validate_manifest  # noqa: E402
 from analyze_motion_media import analyze, extract_dynamic_crops  # noqa: E402
 from classify_source_health import classify_case, classify_manifest  # noqa: E402
@@ -346,6 +346,42 @@ class CatalogToolsTest(unittest.TestCase):
         default_result = search_catalog("interactions loading transition", limit=10, examples_per_motion=20)
         self.assertLessEqual(len(default_result["candidate_pool"]), 48)
 
+    def test_auto_retrieval_scans_full_catalog_before_external_recommendation(self):
+        groups = load_query_expansions()
+        group_ids = {group["id"] for group in groups}
+        self.assertTrue(
+            {"mechanism-pixel", "style-cyberpunk", "mechanism-crt", "mechanism-scanline"} <= group_ids
+        )
+
+        result = search_catalog(
+            "web端，像素风格动效，赛博朋克感，页面转场",
+            strategy="auto",
+            candidate_limit=64,
+        )
+        completed = {item["stage"]: item for item in result["retrieval_trace"] if item["status"] == "completed"}
+        self.assertEqual(result["examples_total"], 3100)
+        self.assertEqual(completed["global"]["examples_scanned"], result["examples_total"])
+        self.assertEqual(completed["global-expanded"]["examples_scanned"], result["examples_total"])
+        self.assertEqual(result["retrieval_level"], "global-expanded")
+        self.assertEqual(result["candidate_pool"][0]["id"], "react-bits-pixel-transition")
+        self.assertEqual(result["candidate_pool"][0]["coverage"], "adjacent")
+        self.assertIn("style-cyberpunk", result["candidate_pool"][0]["missing_query_groups"])
+        self.assertTrue(result["external_search"]["recommended"])
+        self.assertEqual(result["external_search"]["max_initial_queries"], 1)
+        self.assertEqual(result["external_search"]["provenance_label"], "外网补充")
+
+    def test_crt_gap_emits_focused_external_query_only_after_local_ladder(self):
+        result = search_catalog("CRT 电视关机扫描线页面转场", strategy="auto", candidate_limit=64)
+        self.assertFalse(result["coverage"]["complete"])
+        self.assertTrue(result["external_search"]["recommended"])
+        self.assertIn("crt", result["external_search"]["query"].lower())
+        self.assertIn("scanline", result["external_search"]["query"].lower())
+        self.assertIn("shutdown", result["external_search"]["query"].lower())
+        self.assertEqual(
+            [item["stage"] for item in result["retrieval_trace"] if item["status"] == "completed"],
+            ["taxonomy", "global", "global-expanded"],
+        )
+
     def test_candidate_pool_only_cli_avoids_duplicate_match_payload(self):
         completed = subprocess.run(
             [
@@ -367,6 +403,9 @@ class CatalogToolsTest(unittest.TestCase):
         )
         payload = json.loads(completed.stdout)
         self.assertNotIn("matches", payload)
+        self.assertEqual(payload["strategy"], "auto")
+        self.assertIn("retrieval_trace", payload)
+        self.assertIn("external_search", payload)
         self.assertGreaterEqual(len(payload["candidate_pool"]), 48)
         self.assertLessEqual(len(payload["candidate_pool"]), 64)
 
@@ -390,6 +429,7 @@ class CatalogToolsTest(unittest.TestCase):
         deep_rules = (SKILL_ROOT / "references" / "visual-deep-match.md").read_text(encoding="utf-8")
         preview_rules = (SKILL_ROOT / "references" / "source-preview.md").read_text(encoding="utf-8")
         health_rules = (SKILL_ROOT / "references" / "source-health.md").read_text(encoding="utf-8")
+        ladder_rules = (SKILL_ROOT / "references" / "retrieval-ladder.md").read_text(encoding="utf-8")
 
         for rule in (
             "exactly eight eligible concrete case links by default",
@@ -430,6 +470,17 @@ class CatalogToolsTest(unittest.TestCase):
             "Never use `open-source-only` to rescue a `broken` item",
         ):
             self.assertIn(rule, health_rules)
+        for rule in (
+            "taxonomy",
+            "global",
+            "global-expanded",
+            "external_search.recommended=true",
+            "one focused initial query",
+            "外网补充",
+            "本地相邻参考",
+            "Do not add newly discovered external items",
+        ):
+            self.assertIn(rule, ladder_rules)
 
         retrieval_rules = (SKILL_ROOT / "references" / "visual-retrieval.md").read_text(encoding="utf-8")
         for rule in (

@@ -20,6 +20,7 @@ REFERENCES_DIR = SKILL_ROOT / "references"
 BUNDLED_CATALOG = REFERENCES_DIR / "sites.json"
 MOTIONS_FILE = REFERENCES_DIR / "motions.jsonl"
 EXAMPLES_FILE = REFERENCES_DIR / "examples.jsonl"
+QUERY_EXPANSIONS_FILE = REFERENCES_DIR / "query-expansions.json"
 UPDATE_CONFIG = REFERENCES_DIR / "update-config.json"
 
 ALLOWED_SITE_STATUSES = {"active", "degraded"}
@@ -509,6 +510,35 @@ def load_effective_examples() -> tuple[list[dict[str, Any]], str, list[str]]:
     return bundled, "bundled", bundled_errors
 
 
+def load_query_expansions(path: Path = QUERY_EXPANSIONS_FILE) -> list[dict[str, Any]]:
+    data = load_json(path)
+    if not isinstance(data, dict) or data.get("schema_version") != 1:
+        raise ValueError("query expansions must be a schema_version 1 object")
+    groups = data.get("groups")
+    if not isinstance(groups, list) or not groups:
+        raise ValueError("query expansions must contain a non-empty groups array")
+    seen: set[str] = set()
+    normalized: list[dict[str, Any]] = []
+    for index, group in enumerate(groups):
+        prefix = f"query expansion groups[{index}]"
+        if not isinstance(group, dict):
+            raise ValueError(f"{prefix} must be an object")
+        group_id = group.get("id")
+        facet = group.get("facet")
+        terms = group.get("terms")
+        if not isinstance(group_id, str) or not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", group_id):
+            raise ValueError(f"{prefix}.id must be lowercase hyphen-case")
+        if group_id in seen:
+            raise ValueError(f"duplicate query expansion id: {group_id}")
+        if facet not in {"mechanism", "scene", "style", "platform"}:
+            raise ValueError(f"{prefix}.facet is unsupported: {facet!r}")
+        if not isinstance(terms, list) or len(terms) < 2 or not all(isinstance(term, str) and term.strip() for term in terms):
+            raise ValueError(f"{prefix}.terms must contain at least two non-empty strings")
+        seen.add(group_id)
+        normalized.append({"id": group_id, "facet": facet, "terms": terms})
+    return normalized
+
+
 def normalize_text(value: str) -> str:
     value = unicodedata.normalize("NFKC", value).lower()
     return re.sub(r"\s+", " ", value).strip()
@@ -560,6 +590,338 @@ def _example_score(query: str, example: dict[str, Any]) -> float:
             score += weight * 4
         score += weight * len(query_units & text_units(value))
     return round(score, 3)
+
+
+GENERIC_SEARCH_UNITS = {
+    "animation",
+    "effect",
+    "motion",
+    "style",
+    "ui",
+    "动效",
+    "动画",
+    "效果",
+    "风格",
+}
+
+
+def lexical_units(value: str) -> set[str]:
+    normalized = normalize_text(value)
+    units = {
+        unit
+        for unit in re.findall(r"[a-z0-9][a-z0-9.+#-]*", normalized)
+        if len(unit) >= 2 and unit not in GENERIC_SEARCH_UNITS
+    }
+    for group in re.findall(r"[\u3400-\u9fff]+", normalized):
+        if len(group) >= 2:
+            units.add(group)
+            units.update(group[index : index + 2] for index in range(len(group) - 1))
+    return {unit for unit in units if unit not in GENERIC_SEARCH_UNITS}
+
+
+def _contains_term(value: str, term: str) -> bool:
+    normalized_term = normalize_text(term)
+    return bool(normalized_term) and normalized_term in normalize_text(value)
+
+
+def _requested_query_groups(query: str, groups: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [group for group in groups if any(_contains_term(query, term) for term in group["terms"])]
+
+
+def _query_variants(query: str, groups: list[dict[str, Any]]) -> list[str]:
+    translated_terms: list[str] = []
+    query_norm = normalize_text(query)
+    for group in groups:
+        preferred = next(
+            (term for term in group["terms"] if re.search(r"[a-z]", normalize_text(term)) and normalize_text(term) not in query_norm),
+            None,
+        )
+        if preferred and preferred not in translated_terms:
+            translated_terms.append(preferred)
+    variants = [query]
+    if translated_terms:
+        variants.append(query + " | " + " ".join(translated_terms))
+    return variants
+
+
+def _example_document_values(
+    example: dict[str, Any],
+    motion_by_id: dict[str, dict[str, Any]],
+) -> list[tuple[str, float]]:
+    values: list[tuple[str, float]] = [(str(example.get("title", "")), 6.0)]
+    values.extend((str(value), 4.0) for value in example.get("search_terms", []) if isinstance(value, str))
+    values.extend((str(value), 1.5) for value in example.get("stacks", []) if isinstance(value, str))
+    trigger = example.get("trigger", {})
+    if isinstance(trigger, dict) and isinstance(trigger.get("kind"), str):
+        values.append((trigger["kind"], 2.0))
+    for motion_id in example.get("motion_ids", []):
+        motion = motion_by_id.get(str(motion_id))
+        if not motion:
+            continue
+        values.append((motion["id"], 2.0))
+        values.append((motion["category"], 2.5))
+        for field, weight in (
+            ("labels", 4.0),
+            ("aliases", 3.5),
+            ("targets", 2.5),
+            ("triggers", 2.5),
+            ("feel", 2.0),
+            ("channels", 2.0),
+            ("search_terms", 3.0),
+        ):
+            values.extend((str(value), weight) for value in motion[field])
+    return values
+
+
+def _document_lexical_score(query: str, values: list[tuple[str, float]]) -> tuple[float, list[str]]:
+    query_norm = normalize_text(query)
+    query_units = lexical_units(query)
+    matched_units: set[str] = set()
+    score = 0.0
+    for value, weight in values:
+        value_norm = normalize_text(value)
+        if query_norm and len(query_norm) >= 3 and query_norm in value_norm:
+            score += weight * 4
+        overlap = query_units & lexical_units(value)
+        matched_units.update(overlap)
+        score += weight * len(overlap)
+    return round(score, 3), sorted(matched_units)
+
+
+def _direct_coverage(query: str, score: float, matched_units: list[str]) -> str:
+    query_units = lexical_units(query)
+    if not query_units:
+        return "gap"
+    required = max(1, (len(query_units) * 7 + 9) // 10)
+    if len(matched_units) >= required and score >= 4.0:
+        return "exact"
+    if matched_units or score > 0:
+        return "adjacent"
+    return "gap"
+
+
+def _expanded_coverage(
+    direct: str,
+    facet_values: dict[str, list[str]],
+    requested_groups: list[dict[str, Any]],
+) -> tuple[str, list[str], list[str], list[str]]:
+    matched = [
+        group["id"]
+        for group in requested_groups
+        if any(
+            _contains_term(value, term)
+            for value in facet_values[group["facet"]]
+            for term in group["terms"]
+        )
+    ]
+    required = [group["id"] for group in requested_groups if group["facet"] != "platform"]
+    missing = [group_id for group_id in required if group_id not in matched]
+    matched_facets = sorted({group["facet"] for group in requested_groups if group["id"] in matched})
+    if required and not missing:
+        coverage = "exact"
+    elif matched:
+        coverage = "adjacent"
+    else:
+        coverage = direct
+    return coverage, matched, missing, matched_facets
+
+
+def _facet_document_values(
+    example: dict[str, Any],
+    motion_by_id: dict[str, dict[str, Any]],
+) -> dict[str, list[str]]:
+    title = str(example.get("title", ""))
+    example_terms = [str(value) for value in example.get("search_terms", []) if isinstance(value, str)]
+    trigger = example.get("trigger", {})
+    trigger_kind = str(trigger.get("kind", "")) if isinstance(trigger, dict) else ""
+    values = {
+        "mechanism": [title, *example_terms],
+        "scene": [title, trigger_kind],
+        "style": [title, *example_terms],
+        "platform": [str(value) for value in example.get("stacks", []) if isinstance(value, str)],
+    }
+    for motion_id in example.get("motion_ids", []):
+        motion = motion_by_id.get(str(motion_id))
+        if not motion:
+            continue
+        values["mechanism"].extend(
+            [motion["id"], motion["category"], *motion["labels"], *motion["aliases"], *motion["channels"], *motion["search_terms"]]
+        )
+        values["scene"].extend(
+            [*motion["labels"], *motion["aliases"], *motion["targets"], *motion["triggers"], *motion["search_terms"]]
+        )
+        values["style"].extend([*motion["labels"], *motion["aliases"], *motion["feel"]])
+        values["platform"].extend(motion["stacks"])
+    return values
+
+
+def _example_matches_filters(
+    example: dict[str, Any],
+    site_by_id: dict[str, dict[str, Any]],
+    *,
+    stack: str | None,
+    capability: str | None,
+    kind: str | None,
+) -> bool:
+    site = site_by_id.get(example["site_id"])
+    if not site:
+        return False
+    if stack and stack not in example.get("stacks", []):
+        return False
+    if capability and capability not in site["capabilities"]:
+        return False
+    if kind and kind != site["kind"]:
+        return False
+    return True
+
+
+COVERAGE_RANK = {"gap": 0, "adjacent": 1, "exact": 2}
+FACET_SCORE = {"mechanism": 8.0, "scene": 6.0, "style": 5.0, "platform": 2.0}
+STAGE_RANK = {"taxonomy": 0, "global": 1, "global-expanded": 2}
+
+
+def _enrich_candidate(
+    example: dict[str, Any],
+    *,
+    query: str,
+    motion_by_id: dict[str, dict[str, Any]],
+    requested_groups: list[dict[str, Any]],
+    retrieval_stage: str,
+    expanded: bool,
+) -> dict[str, Any]:
+    values = _example_document_values(example, motion_by_id)
+    direct_score, matched_units = _document_lexical_score(query, values)
+    direct = _direct_coverage(query, direct_score, matched_units)
+    matched_groups: list[str] = []
+    missing_groups: list[str] = []
+    matched_facets: list[str] = []
+    matched_mechanism_groups: list[str] = []
+    coverage = direct
+    expansion_score = 0.0
+    if expanded:
+        coverage, matched_groups, missing_groups, matched_facets = _expanded_coverage(
+            direct,
+            _facet_document_values(example, motion_by_id),
+            requested_groups,
+        )
+        group_by_id = {group["id"]: group for group in requested_groups}
+        matched_mechanism_groups = [
+            group_id for group_id in matched_groups if group_by_id[group_id]["facet"] == "mechanism"
+        ]
+        expansion_score = sum(FACET_SCORE[group_by_id[group_id]["facet"]] for group_id in matched_groups)
+    existing_score = float(example.get("recall_score", 0.0))
+    return {
+        **example,
+        "matched_motion_ids": list(dict.fromkeys(example.get("matched_motion_ids", example.get("motion_ids", [])))),
+        "recall_score": round(max(existing_score, direct_score + expansion_score), 3),
+        "coverage": coverage,
+        "matched_query_units": matched_units,
+        "matched_query_groups": matched_groups,
+        "matched_mechanism_groups": matched_mechanism_groups,
+        "missing_query_groups": missing_groups,
+        "matched_facets": matched_facets,
+        "retrieval_stages": list(dict.fromkeys([*example.get("retrieval_stages", []), retrieval_stage])),
+    }
+
+
+def _sort_candidates(candidates: list[dict[str, Any]], limit: int) -> list[dict[str, Any]]:
+    ranked = sorted(
+        candidates,
+        key=lambda example: (
+            -COVERAGE_RANK[example["coverage"]],
+            -len(example.get("matched_mechanism_groups", [])),
+            -len(example.get("matched_query_groups", [])),
+            example["last_verified"] is None,
+            -float(example["recall_score"]),
+            -int(example["last_shallow_check"].replace("-", "")),
+            example["id"],
+        ),
+    )
+    return _diversify_examples(ranked, limit)
+
+
+def _global_candidate_pool(
+    query: str,
+    examples: list[dict[str, Any]],
+    *,
+    motion_by_id: dict[str, dict[str, Any]],
+    site_by_id: dict[str, dict[str, Any]],
+    requested_groups: list[dict[str, Any]],
+    stack: str | None,
+    capability: str | None,
+    kind: str | None,
+    candidate_limit: int,
+    expanded: bool,
+) -> tuple[list[dict[str, Any]], int]:
+    stage = "global-expanded" if expanded else "global"
+    candidates: list[dict[str, Any]] = []
+    scanned = 0
+    for example in examples:
+        if not _example_matches_filters(
+            example,
+            site_by_id,
+            stack=stack,
+            capability=capability,
+            kind=kind,
+        ):
+            continue
+        scanned += 1
+        candidate = _enrich_candidate(
+            example,
+            query=query,
+            motion_by_id=motion_by_id,
+            requested_groups=requested_groups,
+            retrieval_stage=stage,
+            expanded=expanded,
+        )
+        if candidate["coverage"] != "gap":
+            candidates.append(candidate)
+    return _sort_candidates(candidates, candidate_limit), scanned
+
+
+def _merge_candidate_pools(pools: list[list[dict[str, Any]]], limit: int) -> list[dict[str, Any]]:
+    merged: dict[str, dict[str, Any]] = {}
+    for pool in pools:
+        for candidate in pool:
+            current = merged.get(candidate["id"])
+            if current is None:
+                merged[candidate["id"]] = candidate
+                continue
+            stages = list(dict.fromkeys([*current["retrieval_stages"], *candidate["retrieval_stages"]]))
+            candidate_key = (
+                COVERAGE_RANK[candidate["coverage"]],
+                max(STAGE_RANK[stage] for stage in candidate["retrieval_stages"]),
+                len(candidate.get("matched_mechanism_groups", [])),
+                len(candidate.get("matched_query_groups", [])),
+                float(candidate["recall_score"]),
+            )
+            current_key = (
+                COVERAGE_RANK[current["coverage"]],
+                max(STAGE_RANK[stage] for stage in current["retrieval_stages"]),
+                len(current.get("matched_mechanism_groups", [])),
+                len(current.get("matched_query_groups", [])),
+                float(current["recall_score"]),
+            )
+            winner = candidate if candidate_key > current_key else current
+            merged[candidate["id"]] = {
+                **winner,
+                "recall_score": max(float(current["recall_score"]), float(candidate["recall_score"])),
+                "retrieval_stages": stages,
+            }
+    return _sort_candidates(list(merged.values()), limit)
+
+
+def _coverage_summary(candidates: list[dict[str, Any]], target_count: int) -> dict[str, Any]:
+    exact_count = sum(candidate["coverage"] == "exact" for candidate in candidates)
+    adjacent_count = sum(candidate["coverage"] == "adjacent" for candidate in candidates)
+    status = "exact" if exact_count else "adjacent" if adjacent_count else "gap"
+    return {
+        "status": status,
+        "complete": exact_count >= target_count,
+        "target_count": target_count,
+        "exact_count": exact_count,
+        "adjacent_count": adjacent_count,
+    }
 
 
 def _diversify_examples(examples: list[dict[str, Any]], limit: int) -> list[dict[str, Any]]:
@@ -632,11 +994,17 @@ def search_catalog(
     sites_per_motion: int = 3,
     examples_per_motion: int = 10,
     candidate_limit: int = 48,
+    strategy: str = "auto",
+    target_count: int = 8,
 ) -> dict[str, Any]:
     if not 1 <= examples_per_motion <= 20:
         raise ValueError("examples_per_motion must be between 1 and 20")
     if not 1 <= candidate_limit <= 64:
         raise ValueError("candidate_limit must be between 1 and 64")
+    if strategy not in {"auto", "taxonomy", "global", "expanded"}:
+        raise ValueError("strategy must be auto, taxonomy, global, or expanded")
+    if not 1 <= target_count <= 10:
+        raise ValueError("target_count must be between 1 and 10")
     catalog, source, warnings = load_effective_catalog()
     motions, motion_errors = load_motions()
     if motion_errors:
@@ -644,6 +1012,11 @@ def search_catalog(
     examples, example_source, example_errors = load_effective_examples()
     if example_errors:
         raise ValueError("invalid example index: " + "; ".join(example_errors))
+    expansion_groups = load_query_expansions()
+    requested_groups = _requested_query_groups(query, expansion_groups)
+    query_variants = _query_variants(query, requested_groups)
+    motion_by_id = {motion["id"]: motion for motion in motions}
+    site_by_id = {site["id"]: site for site in catalog["sites"]}
 
     ranked = sorted(
         ((motion, _motion_score(query, motion)) for motion in motions),
@@ -713,24 +1086,176 @@ def search_catalog(
                 candidate["recall_score"],
                 round(float(match["score"]) + _example_score(query, example), 3),
             )
-    candidate_pool = sorted(
-        pooled.values(),
-        key=lambda example: (
-            example["last_verified"] is None,
-            -example["recall_score"],
-            -int(example["last_shallow_check"].replace("-", "")),
-            example["id"],
-        ),
+    taxonomy_pool = [
+        _enrich_candidate(
+            example,
+            query=query,
+            motion_by_id=motion_by_id,
+            requested_groups=requested_groups,
+            retrieval_stage="taxonomy",
+            expanded=False,
+        )
+        for example in pooled.values()
+    ]
+    taxonomy_pool = _sort_candidates(
+        [candidate for candidate in taxonomy_pool if candidate["coverage"] != "gap"],
+        candidate_limit,
     )
-    candidate_pool = _diversify_examples(candidate_pool, candidate_limit)
+
+    trace: list[dict[str, Any]] = []
+    candidate_pools: list[list[dict[str, Any]]] = []
+    retrieval_level = strategy
+    expanded_completed = False
+
+    if strategy in {"auto", "taxonomy"}:
+        candidate_pools.append(taxonomy_pool)
+        taxonomy_coverage = _coverage_summary(taxonomy_pool, target_count)
+        trace.append(
+            {
+                "stage": "taxonomy",
+                "examples_scanned": len(pooled),
+                **taxonomy_coverage,
+                "coverage_status": taxonomy_coverage["status"],
+                "status": "completed",
+            }
+        )
+        retrieval_level = "taxonomy"
+
+    candidate_pool = _merge_candidate_pools(candidate_pools, candidate_limit) if candidate_pools else []
+    current_coverage = _coverage_summary(candidate_pool, target_count)
+
+    should_run_global = strategy == "global" or (strategy == "auto" and not current_coverage["complete"])
+    if should_run_global:
+        global_pool, scanned = _global_candidate_pool(
+            query,
+            examples,
+            motion_by_id=motion_by_id,
+            site_by_id=site_by_id,
+            requested_groups=requested_groups,
+            stack=stack,
+            capability=capability,
+            kind=kind,
+            candidate_limit=candidate_limit,
+            expanded=False,
+        )
+        candidate_pools.append(global_pool)
+        candidate_pool = _merge_candidate_pools(candidate_pools, candidate_limit)
+        current_coverage = _coverage_summary(candidate_pool, target_count)
+        global_coverage = _coverage_summary(global_pool, target_count)
+        trace.append(
+            {
+                "stage": "global",
+                "examples_scanned": scanned,
+                **global_coverage,
+                "coverage_status": global_coverage["status"],
+                "status": "completed",
+            }
+        )
+        retrieval_level = "global"
+    elif strategy == "auto":
+        trace.append(
+            {
+                "stage": "global",
+                "status": "skipped",
+                "examples_scanned": 0,
+                "reason": "taxonomy returned the requested number of exact local candidates",
+            }
+        )
+
+    should_run_expanded = strategy == "expanded" or (strategy == "auto" and not current_coverage["complete"])
+    if should_run_expanded:
+        expanded_pool, scanned = _global_candidate_pool(
+            query,
+            examples,
+            motion_by_id=motion_by_id,
+            site_by_id=site_by_id,
+            requested_groups=requested_groups,
+            stack=stack,
+            capability=capability,
+            kind=kind,
+            candidate_limit=candidate_limit,
+            expanded=True,
+        )
+        candidate_pools.append(expanded_pool)
+        candidate_pool = _merge_candidate_pools(candidate_pools, candidate_limit)
+        current_coverage = _coverage_summary(candidate_pool, target_count)
+        expanded_coverage = _coverage_summary(expanded_pool, target_count)
+        trace.append(
+            {
+                "stage": "global-expanded",
+                "examples_scanned": scanned,
+                **expanded_coverage,
+                "coverage_status": expanded_coverage["status"],
+                "status": "completed",
+            }
+        )
+        retrieval_level = "global-expanded"
+        expanded_completed = True
+    elif strategy == "auto":
+        trace.append(
+            {
+                "stage": "global-expanded",
+                "status": "skipped",
+                "examples_scanned": 0,
+                "reason": "the preceding local stage returned the requested number of exact candidates",
+            }
+        )
+
+    if strategy == "taxonomy":
+        candidate_pool = taxonomy_pool
+        current_coverage = _coverage_summary(candidate_pool, target_count)
+    elif strategy in {"global", "expanded"}:
+        candidate_pool = _merge_candidate_pools(candidate_pools, candidate_limit)
+        current_coverage = _coverage_summary(candidate_pool, target_count)
+
+    best_candidate = candidate_pool[0] if candidate_pool else None
+    missing_group_ids = best_candidate.get("missing_query_groups", []) if best_candidate else [
+        group["id"] for group in requested_groups if group["facet"] != "platform"
+    ]
+    group_by_id = {group["id"]: group for group in requested_groups}
+    missing_terms = [
+        next((term for term in group_by_id[group_id]["terms"] if re.search(r"[a-z]", normalize_text(term))), group_by_id[group_id]["terms"][0])
+        for group_id in missing_group_ids
+        if group_id in group_by_id
+    ]
+    external_query = query + (" | " + " ".join(missing_terms) if missing_terms else "")
+    local_ladder_exhausted = expanded_completed
+    external_recommended = local_ladder_exhausted and not current_coverage["complete"]
+    if current_coverage["complete"]:
+        external_reason = "the local catalog satisfied the requested exact-result target"
+    elif not local_ladder_exhausted:
+        external_reason = "local retrieval ladder not exhausted"
+    elif current_coverage["exact_count"] == 0:
+        external_reason = "no exact local candidate satisfies every requested mechanism, scene, and style facet"
+    else:
+        external_reason = (
+            f"only {current_coverage['exact_count']} exact local candidates remain for a target of "
+            f"{target_count}"
+        )
 
     return {
         "query": query,
         "filters": {"stack": stack, "capability": capability, "kind": kind},
+        "strategy": strategy,
+        "retrieval_level": retrieval_level,
+        "examples_total": len(examples),
+        "query_variants": query_variants,
+        "query_expansion_groups": [
+            {"id": group["id"], "facet": group["facet"]} for group in requested_groups
+        ],
         "catalog_version": catalog["catalog_version"],
         "catalog_source": source,
         "example_source": example_source,
         "catalog_warnings": warnings,
         "matches": matches,
         "candidate_pool": candidate_pool,
+        "coverage": current_coverage,
+        "retrieval_trace": trace,
+        "external_search": {
+            "recommended": external_recommended,
+            "reason": external_reason,
+            "query": external_query,
+            "max_initial_queries": 1,
+            "provenance_label": "外网补充",
+        },
     }

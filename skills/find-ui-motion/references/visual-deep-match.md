@@ -22,10 +22,10 @@ Build and fix the cross-source catalog pool before opening any candidate page. D
 At deep-match entry, request the deduplicated pool directly. Use `--candidate-limit 48` normally; change only that value to `64` for the maximum-recall cases above:
 
 ```bash
-python3 scripts/search_catalog.py "<user request>" --limit 10 --examples-per-motion 20 --candidate-limit 64 --candidate-pool-only --json
+python3 scripts/search_catalog.py "<user request>" --strategy auto --target-count 8 --limit 10 --examples-per-motion 20 --candidate-limit 64 --candidate-pool-only --json
 ```
 
-Use `candidate_pool`, not a concatenation of per-motion examples. It is already deduplicated and source-diversified for the first-pass shortlist. Keep `--candidate-pool-only` for deep retrieval so the 64-case pool is not duplicated inside the per-motion JSON payload.
+Use `candidate_pool`, not a concatenation of per-motion examples. It is already deduplicated and source-diversified for the first-pass shortlist. Keep `--candidate-pool-only` for deep retrieval so the 64-case pool is not duplicated inside the per-motion JSON payload. Preserve `coverage`, `retrieval_trace`, and external provenance from [retrieval-ladder.md](retrieval-ladder.md); never use adjacent or externally supplemented items as unlabeled exact matches.
 
 Record the actual returned count before live checking. If fewer than the requested 48 or 64 candidates are returned, keep the smaller fixed pool and report that real denominator; do not silently replace it with a single-source scrape. A current source page may resolve or replace a concrete candidate only after this cross-source pool is fixed.
 

@@ -22,11 +22,12 @@ Treat requests phrased as “find”, “show”, “recommend”, or “give me
    - target platform;
    - stack and delivery constraints.
 2. Infer harmless omissions and label them `inferred`. Ask only when the missing answer changes the result class.
-3. Run `scripts/search_catalog.py` with the user's natural-language request and confirmed filters.
-4. Group near-duplicate results. Resolve concrete item URLs, collect current source-health evidence after `settle_ms`, and classify ambiguous observations with `scripts/classify_source_health.py`. Exclude `shell_reachable` and `broken` items before returning sparse quick links with one fit sentence each. Put collection or search routes under `继续探索入口`, never in the case list.
-5. Unless the user requests quick results only, read [visual-deep-match.md](visual-deep-match.md), recall 48 cases by default and at most 64, then narrow to the documented 24-item live-check and 16-item capture limits before returning eight eligible ranked results by default or at most ten when explicitly requested.
-6. When the user explicitly asks for a side-by-side comparison or saved result, read [source-preview.md](source-preview.md) and build verified evidence only after the direct links are available.
-7. Transition to reference rebuild when the user asks to copy, integrate, download, or reproduce one candidate.
+3. Read [retrieval-ladder.md](retrieval-ladder.md), then run `scripts/search_catalog.py` with `--strategy auto --target-count 8 --trace` and the user's confirmed filters. Let the script exhaust taxonomy, full-index, and expanded local retrieval before any Web supplement.
+4. Keep `本地准确匹配`, `本地相邻参考`, and `外网补充` visibly separate. If and only if `external_search.recommended=true`, announce the local coverage gap and run one focused external query using the emitted query. Group near-duplicate results and canonical URLs across every provenance class.
+5. Resolve concrete item URLs, collect current source-health evidence after `settle_ms`, and classify ambiguous observations with `scripts/classify_source_health.py`. Exclude `shell_reachable` and `broken` items before returning sparse quick links with one fit sentence each. Put collection or search routes under `继续探索入口`, never in the case list.
+6. Unless the user requests quick results only, read [visual-deep-match.md](visual-deep-match.md), recall 48 cases by default and at most 64, then narrow to the documented 24-item live-check and 16-item capture limits before returning eight eligible ranked results by default or at most ten when explicitly requested.
+7. When the user explicitly asks for a side-by-side comparison or saved result, read [source-preview.md](source-preview.md) and build verified evidence only after the direct links are available.
+8. Transition to reference rebuild when the user asks to copy, integrate, download, or reproduce one candidate.
 
 ## Ranking priorities
 

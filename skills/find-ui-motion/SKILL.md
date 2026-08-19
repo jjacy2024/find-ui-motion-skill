@@ -1,11 +1,11 @@
 ---
 name: find-ui-motion
-description: Find UI motion for Web and mobile, including 网页动效、App 动效、交互动效、微动效和动画灵感. Use when a user wants to 找、搜索、推荐、比较、预览、复制、复刻、还原或实现界面动画; mentions hover, gesture, transition, navigation, scroll, loading, text animation, page or screen entrance, CSS, JavaScript, React, Vue, SwiftUI, Jetpack Compose, Flutter, React Native, Lottie, or Rive; asks to see real source examples; has only a vague motion idea; asks for 动效网站或动画参考; or provides a webpage, app screenshot, link, image, or video as a motion reference. Guide vague requests through questions, search the compact local catalog, show live-verified source evidence, then deliver a platform-compatible public snippet, package integration, licensed asset, or independent recreation. Do not use for static UI design, ordinary development without motion, or general video editing.
+description: Find UI motion for Web and mobile, including 网页动效、App 动效、交互动效、微动效和动画灵感. Use when a user wants to 找、搜索、推荐、比较、预览、复制、复刻、还原或实现界面动画; mentions hover, gesture, transition, navigation, scroll, loading, text animation, page or screen entrance, CSS, JavaScript, React, Vue, SwiftUI, Jetpack Compose, Flutter, React Native, Lottie, or Rive; asks to see real source examples; has only a vague motion idea; asks for 动效网站或动画参考; or provides a webpage, app screenshot, link, image, or video as a motion reference. Guide vague requests through questions, exhaust deterministic local taxonomy, full-index, and synonym-expanded retrieval before bounded Web supplementation, show live-verified source evidence, then deliver a platform-compatible public snippet, package integration, licensed asset, or independent recreation. Do not use for static UI design, ordinary development without motion, or general video editing.
 ---
 
 # Find UI Motion
 
-Use the local catalog for fast recall. Access selected websites to resolve concrete item links, inspect real motion, or verify current source material, licensing, and implementation details.
+Use the local catalog for fast recall. Exhaust its deterministic retrieval ladder before external discovery. Access selected websites to resolve concrete item links, inspect real motion, verify current source material, or perform one bounded supplement after a confirmed local coverage gap.
 
 Keep the source environment and target platform separate. A Web example may be valid visual evidence for a mobile interaction, but its code is not automatically compatible with the mobile runtime.
 
@@ -21,15 +21,19 @@ Do not force a vague request into exact search. Do not treat a visually similar 
 
 ## Use the local catalog
 
+Read [retrieval-ladder.md](references/retrieval-ladder.md) before concrete-case discovery.
+
 Run local search from the Skill directory:
 
 ```bash
-python3 scripts/search_catalog.py "<user request>" --limit 10
+python3 scripts/search_catalog.py "<user request>" --strategy auto --target-count 8 --candidate-limit 48 --trace
 ```
 
 Add `--stack`, `--capability`, or `--kind` only when the user has supplied those constraints and the local catalog represents them. For a native target with no matching catalog stack, search by behavior without the stack filter, then apply platform compatibility during reference rebuild. Use `--json` when another script or structured comparison needs the result.
 
 Treat search scores as retrieval hints, not final design judgment. Inspect the best matches and remove incompatible or repetitive candidates. Never infer quality from source volume; preserve cross-source diversity when several sources contain similarly relevant concrete items.
+
+Let `auto` decide whether to escalate from taxonomy recall to a text scan of every eligible local example and then bundled bilingual query expansion. Never open Google or another search engine before the script completes the local ladder and returns `external_search.recommended=true`. Announce the local coverage gap before one focused external query. Label every such item `外网补充`, keep it separate from `本地准确匹配` and `本地相邻参考`, and apply the same direct-item, deduplication, and source-health gates.
 
 Generate a synthetic local direction board only when comparing newly synthesized motion DNA:
 
@@ -45,6 +49,7 @@ For discovery after any necessary inspiration conversation, return a quick metad
 
 - Read [source-health.md](references/source-health.md) and apply its current content-health gate before calling any dynamic or interactive item eligible. An outer-page HTTP 200, `last_shallow_check`, or catalog record alone never proves that the named item still renders.
 - Show exactly eight eligible concrete case links by default and never more than ten when the user explicitly requests more. Include only items classified `render_verified` or `capture_restricted`. Reduce the count below eight only when fewer than eight unique, relevant, content-healthy cases remain; return every eligible remainder and state the shortfall reason. Never pad the list with weak, duplicate, inaccessible, broken, shell-only, or non-item links.
+- Never count a local `adjacent` case as an exact result merely to reach eight. When external supplementation is needed, present local exact, local adjacent, and external cases under visibly separate provenance labels.
 - Link directly to each public item or demo. For a live-observed `official-media` record, use its `preview_url` as `观看动效` and keep the item `url` separately as `来源页`; never send an empty wrapper as the watch link. Do not put a category, search, collection, or homepage in the case list; label those separately as `继续探索入口`.
 - Use one short sentence per case. Omit long Motion Briefs, Motion DNA cards, YAML, and generic prose from the visible quick result.
 - Label the pass `快速初筛，尚未完成视觉复核` and state whether visual deep matching will continue.
