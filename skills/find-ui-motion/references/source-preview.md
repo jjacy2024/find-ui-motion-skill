@@ -2,6 +2,8 @@
 
 Use this workflow when the user asks to see real examples, when visual comparison would materially improve a discovery decision, or before implementing a selected live reference.
 
+This workflow does not authorize searching for video-only cases. Keep `video_case_search_authorized=false` unless the user explicitly asks for video cases or explicitly approves a proposed video supplement. A generic request to see examples is not authorization.
+
 ## Keep evidence classes separate
 
 Use exactly one label for every visual:
@@ -16,8 +18,8 @@ Never attach a source site, item title, or source URL to `local-synthesis`. Neve
 
 ## Resolve examples
 
-1. Shortlist motion directions with `scripts/search_catalog.py` before browsing.
-2. Prefer a matching item from `references/examples.jsonl`.
+1. Shortlist motion directions with `scripts/search_catalog.py` before browsing, then apply the code-first source policy from [retrieval-ladder.md](retrieval-ladder.md).
+2. Prefer a matching code-backed or runtime-backed item from `references/examples.jsonl`. Exclude video-only items while video search is unauthorized.
 3. Read [source-health.md](source-health.md), wait for the current `settle_ms`, and verify that the named item or its exact `official-media` preview renders. A wrapper HTTP 200 or successful Range request is not visual availability.
 4. If no indexed item fits, open the selected site's category route and choose one visible item whose behavior matches. Record its exact item URL; do not retain a category page as the item source.
 5. When a publisher exposes no item permalink, keep the exact official source file as `url`, add the public category as `preview_url`, set `link_scope: source-with-category-preview`, and use `open-source-only`. Show both links and say that the preview is a category locator, not a direct or visually verified item link.
@@ -54,7 +56,7 @@ The three-item page size below applies only to media-rich verified-evidence foll
 
 Prefer evidence in this order:
 
-1. Use an official GIF, video, Lottie, Rive, or official interactive preview when the source intentionally exposes it and current terms allow local viewing.
+1. Use an official interactive preview, GIF, Lottie, Rive, or video preview when the source intentionally exposes it and current terms allow local viewing. A video preview is allowed without video-search authorization only when it previews the same code-backed or runtime-backed case already selected; a video-only candidate still requires authorization.
 2. Otherwise open the exact item in an available browser, capture a rest state, perform the visible trigger, then capture the peak or settled state. Create a 3-5 second clip when recording is available; otherwise create a storyboard with at least two real states.
 3. If capture fails, inspect critical item-data responses, console errors, and the expected render target before choosing a fallback. Classify missing data or an absent settled render target as `broken` and exclude it.
 4. Use `open-source-only` only when the exact item visibly exists but capture is restricted or when `source-with-category-preview` resolves the named case. Never use it for an empty or broken page.
@@ -62,6 +64,8 @@ Prefer evidence in this order:
 For hover, include the pointer-away rest state and the settled hover state. For click, capture before and after. For scroll or mount, reload or use the page's replay control only when it is publicly exposed. Do not modify the page to manufacture a state.
 
 Store captured media only in the current task output. Do not add third-party media to the Skill, GitHub catalog, or release package. A local short-lived cache is acceptable only when the URL, trigger recipe, viewport, and verification date are shown and the source remains current.
+
+Recording a transient clip from a code-backed interactive page for visual analysis is evidence capture, not a video-case search, and does not change the authorization state.
 
 ## Apply rights and safety gates
 

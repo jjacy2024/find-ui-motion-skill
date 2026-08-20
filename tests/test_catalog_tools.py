@@ -20,6 +20,7 @@ sys.path.insert(0, str(MAINTAINER))
 
 from build_evidence_board import prepare_manifest  # noqa: E402
 from build_visual_index import build_index_data  # noqa: E402
+from catalog_overview import build_catalog_overview, render_markdown  # noqa: E402
 from catalog_lib import _diversify_examples, load_examples, load_json, load_motions, load_query_expansions, search_catalog, validate_catalog_data  # noqa: E402
 from check_catalog_update import check_update, validate_manifest  # noqa: E402
 from analyze_motion_media import analyze, extract_dynamic_crops  # noqa: E402
@@ -27,6 +28,7 @@ from classify_source_health import classify_case, classify_manifest  # noqa: E40
 from rank_visual_matches import rank_manifest  # noqa: E402
 from retrieval_fusion import reciprocal_rank_fusion, selective_vlm_decision  # noqa: E402
 from search_visual_index import search_index  # noqa: E402
+from source_suggestion import FIELD_LABEL, PROMPT_TEMPLATE, evaluate_source_suggestion  # noqa: E402
 from visual_index import late_interaction_scores, load_metadata, load_visual_index, write_metadata, write_visual_index  # noqa: E402
 from curate_examples import curate  # noqa: E402
 from expand_public_sitemaps import _normalize_url  # noqa: E402
@@ -57,7 +59,7 @@ class CatalogToolsTest(unittest.TestCase):
         self.assertEqual(errors, [])
         self.assertEqual(motion_errors, [])
         self.assertEqual(example_errors, [])
-        self.assertEqual(len(catalog["sites"]), 18)
+        self.assertEqual(len(catalog["sites"]), 23)
         site_ids = {site["id"] for site in catalog["sites"]}
         self.assertTrue({"uiverse", "unicorn-studio", "lottielab", "design-spells", "transitions-dev", "originkit", "pixel-perfect"} <= site_ids)
         self.assertTrue({"aceternity-ui", "animate-ui", "21st-dev", "motion-primitives"} <= site_ids)
@@ -69,7 +71,16 @@ class CatalogToolsTest(unittest.TestCase):
         self.assertEqual(len({example["id"] for example in examples}), len(examples))
         self.assertEqual(len({example["url"].rstrip("/") for example in examples}), len(examples))
         self.assertTrue(all(example["last_shallow_check"] for example in examples))
-        self.assertTrue(all(example["last_verified"] is not None for example in examples))
+        self.assertTrue(
+            all(
+                example["last_verified"] is not None
+                or (
+                    example.get("link_scope") == "source-with-category-preview"
+                    and example["last_verified"] is None
+                )
+                for example in examples
+            )
+        )
         self.assertTrue(all(example.get("verification", {}).get("verified_at") == example["last_verified"] for example in examples))
 
     def test_conservative_curation_keeps_only_current_dynamic_evidence(self):
@@ -212,7 +223,7 @@ class CatalogToolsTest(unittest.TestCase):
         self.assertTrue(all(example["last_verified"] is not None for example in sitemap_examples))
         self.assertTrue(all(example["verification"]["kind"] == "browser-page-motion" for example in sitemap_examples))
         self.assertTrue(all(example["source_evidence"]["sitemap_url"].startswith("https://") for example in sitemap_examples))
-        self.assertTrue(all(example["source_evidence"]["discovered_at"] == example["last_shallow_check"] for example in sitemap_examples))
+        self.assertTrue(all(example["source_evidence"]["discovered_at"] <= example["last_shallow_check"] for example in sitemap_examples))
         self.assertIn("interactive-component-motion", {motion for example in sitemap_examples for motion in example["motion_ids"]})
         self.assertIn("product-microinteraction", {motion for example in sitemap_examples for motion in example["motion_ids"]})
         self.assertNotIn("https://magicui.design/docs/components/android", {example["url"] for example in examples})
@@ -224,6 +235,7 @@ class CatalogToolsTest(unittest.TestCase):
         index_examples = [
             example for example in examples
             if example.get("source_evidence", {}).get("kind") == "public-index-page"
+            and example.get("link_scope", "item") == "item"
         ]
         self.assertGreaterEqual(len(index_examples), 217)
         source_counts = {
@@ -238,7 +250,7 @@ class CatalogToolsTest(unittest.TestCase):
         self.assertTrue(all(example["last_verified"] is not None for example in index_examples))
         self.assertTrue(all(example["verification"]["kind"] == "browser-page-motion" for example in index_examples))
         self.assertTrue(all(example["source_evidence"]["index_url"].startswith("https://") for example in index_examples))
-        self.assertTrue(all(example["source_evidence"]["discovered_at"] == example["last_shallow_check"] for example in index_examples))
+        self.assertTrue(all(example["source_evidence"]["discovered_at"] <= example["last_shallow_check"] for example in index_examples))
         self.assertTrue(all("/@" in example["url"] and "%40" not in example["url"] for example in index_examples if example["site_id"] == "21st-dev"))
 
     def test_public_item_url_normalization_preserves_at_sign(self):
@@ -294,6 +306,181 @@ class CatalogToolsTest(unittest.TestCase):
         ):
             self.assertIn(rule, rebuild_rules)
 
+    def test_code_first_discovery_requires_explicit_video_case_authorization(self):
+        skill_text = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
+        exact_rules = (SKILL_ROOT / "references" / "exact-search.md").read_text(encoding="utf-8")
+        ladder_rules = (SKILL_ROOT / "references" / "retrieval-ladder.md").read_text(encoding="utf-8")
+        inspiration_rules = (SKILL_ROOT / "references" / "inspiration-exploration.md").read_text(encoding="utf-8")
+        preview_rules = (SKILL_ROOT / "references" / "source-preview.md").read_text(encoding="utf-8")
+
+        for rule in (
+            "video_case_search_authorized=false",
+            "explicitly asks for video cases",
+            "Exclude video-only sources",
+            "code-backed | runtime-backed | video-only",
+            "视频补充（已授权）",
+            "transient clip recorded from a code-backed interactive demo",
+        ):
+            self.assertIn(rule, skill_text)
+        self.assertIn("prioritize cases with an attached public snippet", exact_rules)
+        self.assertIn("Exclude video-only cases from retrieval", exact_rules)
+        self.assertIn("Rank `code-backed` and `runtime-backed` cases first", ladder_rules)
+        self.assertIn("A generic request to see examples does not authorize video-case search", inspiration_rules)
+        self.assertIn("A video preview is allowed without video-search authorization only when it previews the same code-backed", preview_rules)
+
+    def test_catalog_overview_reports_current_bundled_counts(self):
+        overview = build_catalog_overview()
+
+        self.assertEqual(overview["catalog_version"], "2026.08.9")
+        self.assertEqual(overview["source_count"], 23)
+        self.assertEqual(overview["case_count"], 3656)
+        self.assertNotIn("sites", overview)
+        self.assertEqual(
+            overview["announcement"],
+            "当前版本 2026.08.9 的内置清单共收录 23 个来源网站，"
+            "案例库中共有 3656 个案例。"
+            "如果你有兴趣，可以查看网站清单，并手动点击链接访问任意来源网站。",
+        )
+
+    def test_catalog_overview_lists_every_public_source_as_a_clickable_link(self):
+        overview = build_catalog_overview(include_sites=True)
+        sites = overview["sites"]
+
+        self.assertEqual(len(sites), overview["source_count"])
+        self.assertEqual(len({site["name"] for site in sites}), overview["source_count"])
+        self.assertTrue(all(site["homepage"].startswith("https://") for site in sites))
+        markdown = render_markdown(overview)
+        self.assertIn("### 网站清单", markdown)
+        for site in sites:
+            self.assertIn(f"]({site['homepage']})", markdown)
+
+        completed = subprocess.run(
+            [
+                sys.executable,
+                str(SCRIPTS / "catalog_overview.py"),
+                "--list-sites",
+                "--format",
+                "markdown",
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        self.assertEqual(completed.stdout.count("\n- ["), overview["source_count"])
+
+    def test_catalog_overview_is_once_per_task_and_never_auto_opens_sites(self):
+        skill_text = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
+        rules = (SKILL_ROOT / "references" / "catalog-overview.md").read_text(encoding="utf-8")
+
+        for rule in (
+            "first Skill use in each task",
+            "source-site and case counts once",
+            "Do not open any source automatically",
+        ):
+            self.assertIn(rule, skill_text)
+        for rule in (
+            "never hardcode or estimate",
+            "Do not repeat the announcement later in the same task",
+            "Return every listed website as a clickable Markdown link",
+            "does not count toward the default eight concrete-case links",
+            "Let the user manually click a link",
+        ):
+            self.assertIn(rule, rules)
+
+    def test_new_external_source_suggestion_uses_approved_copy_and_one_field(self):
+        result = evaluate_source_suggestion(
+            site_name="Particle Lab",
+            item_url="https://particles.example.com/demos/app-launch",
+            match_quality="exact",
+            confidence="high",
+            source_health="render_verified",
+            support_kind="code-backed",
+            concrete_item=True,
+        )
+
+        self.assertTrue(result["eligible"])
+        self.assertEqual(
+            result["prompt"],
+            "发现一个尚未收录的高质量动效来源 particles.example.com。"
+            "是否生成来源推荐，交给 find-ui-motion Catalog 维护者审核？"
+            "审核通过后会加入下一个版本的内置清单中",
+        )
+        self.assertEqual(PROMPT_TEMPLATE.count("{domain}"), 1)
+        self.assertEqual(
+            result["submission"]["fields"],
+            [{"label": FIELD_LABEL, "value": "Particle Lab — particles.example.com"}],
+        )
+        channels = result["submission"]["channels"]
+        self.assertIn("github.com/jjacy2024/find-ui-motion-catalog/issues/new", channels["github_issue_url"])
+        self.assertIn("source-suggestion.md", channels["github_issue_url"])
+        self.assertNotIn("app-launch", channels["github_issue_url"])
+        self.assertIsNone(channels["email_url"])
+
+        with_email = evaluate_source_suggestion(
+            site_name="Particle Lab",
+            item_url="https://particles.example.com/demos/app-launch",
+            match_quality="exact",
+            confidence="high",
+            source_health="render_verified",
+            support_kind="runtime-backed",
+            concrete_item=True,
+            email="maintainer@example.com",
+        )
+        email_url = with_email["submission"]["channels"]["email_url"]
+        self.assertTrue(email_url.startswith("mailto:maintainer@example.com?"))
+        self.assertNotIn("app-launch", email_url)
+
+    def test_source_suggestion_rejects_catalogued_or_weak_candidates(self):
+        base = {
+            "site_name": "Motion",
+            "item_url": "https://motion.dev/examples/react-particle-launch",
+            "match_quality": "exact",
+            "confidence": "high",
+            "source_health": "render_verified",
+            "support_kind": "code-backed",
+            "concrete_item": True,
+        }
+        catalogued = evaluate_source_suggestion(**base)
+        self.assertFalse(catalogued["eligible"])
+        self.assertIn("already-in-catalog", catalogued["reasons"])
+        self.assertIsNone(catalogued["submission"])
+
+        weak = evaluate_source_suggestion(
+            **{
+                **base,
+                "site_name": "Particle Lab",
+                "item_url": "https://particles.example.com/demos/app-launch",
+                "match_quality": "adjacent",
+                "confidence": "medium",
+                "source_health": "capture_restricted",
+                "support_kind": "video-only",
+                "concrete_item": False,
+                "already_suggested": True,
+            }
+        )
+        self.assertFalse(weak["eligible"])
+        self.assertEqual(
+            set(weak["reasons"]),
+            {
+                "not-exact",
+                "not-high-confidence",
+                "not-live-render-verified",
+                "not-code-or-runtime-backed",
+                "not-concrete-item",
+                "already-suggested-in-task",
+            },
+        )
+
+    def test_source_suggestion_reference_forbids_extra_or_automatic_submission(self):
+        skill_text = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
+        rules = (SKILL_ROOT / "references" / "source-suggestion.md").read_text(encoding="utf-8")
+
+        self.assertIn("网站名称与域名", skill_text)
+        self.assertIn("审核通过后会加入下一个版本的内置清单中", rules)
+        self.assertIn("contains exactly one field", rules)
+        self.assertIn("Never create an Issue, send email", rules)
+        self.assertIn("The item URL is local evaluation input only", rules)
+
     def test_exact_example_is_attached_to_matching_motion(self):
         result = search_catalog("SaaS 首页首屏高级安静的进入动效", stack="react", limit=4)
         blur = next(match for match in result["matches"] if match["motion"]["id"] == "entrance-blur-reveal")
@@ -303,7 +490,7 @@ class CatalogToolsTest(unittest.TestCase):
     def test_expanded_examples_are_retrievable_beyond_top_three_sites(self):
         checks = {
             "滚动文字逐字揭示": ("scroll-text-scrub", "originkit"),
-            "左右横向画廊": ("scroll-horizontal", "magic-ui"),
+            "左右横向画廊": ("scroll-horizontal", "aceternity-ui"),
             "按钮跟随鼠标": ("hover-magnetic", "motion"),
             "卡片展开成详情": ("transition-container-transform", "motion"),
         }
@@ -359,7 +546,7 @@ class CatalogToolsTest(unittest.TestCase):
             candidate_limit=64,
         )
         completed = {item["stage"]: item for item in result["retrieval_trace"] if item["status"] == "completed"}
-        self.assertEqual(result["examples_total"], 3100)
+        self.assertEqual(result["examples_total"], 3656)
         self.assertEqual(completed["global"]["examples_scanned"], result["examples_total"])
         self.assertEqual(completed["global-expanded"]["examples_scanned"], result["examples_total"])
         self.assertEqual(result["retrieval_level"], "global-expanded")

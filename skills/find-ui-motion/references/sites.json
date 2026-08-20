@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "catalog_version": "2026.08.8",
-  "generated_at": "2026-08-19T12:20:17Z",
+  "catalog_version": "2026.08.9",
+  "generated_at": "2026-08-20T08:02:33Z",
   "sites": [
     {
       "id": "motion",
@@ -27,7 +27,7 @@
         "url": "https://github.com/motiondivision/motion/blob/main/LICENSE.md"
       },
       "added_at": "2026-08-18",
-      "last_shallow_check": "2026-08-19",
+      "last_shallow_check": "2026-08-20",
       "last_deep_review": null,
       "access_notes": "Examples route returned HTTP 200 during shallow verification; verify the selected example and current terms live."
     },
@@ -56,7 +56,7 @@
         "url": null
       },
       "added_at": "2026-08-19",
-      "last_shallow_check": "2026-08-19",
+      "last_shallow_check": "2026-08-20",
       "last_deep_review": "2026-08-19",
       "access_notes": "The public components index and three representative animated item pages rendered in a normal Chrome session on 2026-08-19. Verify the selected item's current copy path, dependencies, and terms before reuse."
     },
@@ -84,7 +84,7 @@
         "url": "https://github.com/imskyleen/animate-ui/blob/main/LICENSE.md"
       },
       "added_at": "2026-08-19",
-      "last_shallow_check": "2026-08-19",
+      "last_shallow_check": "2026-08-20",
       "last_deep_review": "2026-08-19",
       "access_notes": "The official component and primitive indexes and ten representative item demos rendered on 2026-08-19. The repository license is MIT plus Commons Clause; do not resell or redistribute the components themselves."
     },
@@ -112,7 +112,7 @@
         "url": "https://21st.dev/terms"
       },
       "added_at": "2026-08-19",
-      "last_shallow_check": "2026-08-19",
+      "last_shallow_check": "2026-08-20",
       "last_deep_review": "2026-08-19",
       "access_notes": "Public category pages expose exact author-owned component permalinks. Seven of ten representative item pages showed visible motion on 2026-08-19; verify each author implementation, dependency set, and reuse terms."
     },
@@ -140,7 +140,7 @@
         "url": null
       },
       "added_at": "2026-08-19",
-      "last_shallow_check": "2026-08-19",
+      "last_shallow_check": "2026-08-20",
       "last_deep_review": "2026-08-19",
       "access_notes": "The public docs index was rediscovered after the security-policy update, and ten exact item pages showed current visible motion on 2026-08-19. Verify package terms, dependencies, and the selected public code path before reuse."
     },
@@ -195,7 +195,7 @@
         "url": null
       },
       "added_at": "2026-08-18",
-      "last_shallow_check": "2026-08-18",
+      "last_shallow_check": "2026-08-20",
       "last_deep_review": null,
       "access_notes": "Homepage returned HTTP 200. Treat generated CSS as unavailable for copying until current terms are checked in the browser."
     },
@@ -222,7 +222,7 @@
         "url": "https://github.com/DavidHDev/react-bits/blob/main/LICENSE.md"
       },
       "added_at": "2026-08-18",
-      "last_shallow_check": "2026-08-18",
+      "last_shallow_check": "2026-08-20",
       "last_deep_review": null,
       "access_notes": "Repository license is MIT plus Commons Clause as observed on 2026-08-18; verify current restrictions before reuse."
     },
@@ -249,7 +249,7 @@
         "url": "https://github.com/magicuidesign/magicui/blob/main/LICENSE.md"
       },
       "added_at": "2026-08-18",
-      "last_shallow_check": "2026-08-18",
+      "last_shallow_check": "2026-08-20",
       "last_deep_review": "2026-08-18",
       "access_notes": "Browser review verified the Shimmer Button preview, public Manual Copy path, registry command, and MIT repository license. Verify each selected component's current dependencies and generated import path."
     },
@@ -294,7 +294,7 @@
         "url": "https://help.rive.app/legal/terms-of-service"
       },
       "added_at": "2026-08-18",
-      "last_shallow_check": null,
+      "last_shallow_check": "2026-08-20",
       "last_deep_review": "2026-08-18",
       "access_notes": "Browser review found the former /community route returns 404 and confirmed /community/files/ as the current Marketplace route. Verify download rights and runtime requirements per asset."
     },
@@ -349,7 +349,7 @@
         "url": "https://www.unicorn.studio/terms"
       },
       "added_at": "2026-08-18",
-      "last_shallow_check": "2026-08-18",
+      "last_shallow_check": "2026-08-20",
       "last_deep_review": "2026-08-18",
       "access_notes": "The public inspiration gallery is suitable for discovery. Free-plan output is limited to non-commercial personal use with a watermark; commercial use and JSON export require the applicable paid plan. The SDK is proprietary and only licensed for legitimate Unicorn Studio projects."
     },
@@ -376,7 +376,7 @@
         "url": "https://www.lottielab.com/terms"
       },
       "added_at": "2026-08-18",
-      "last_shallow_check": "2026-08-18",
+      "last_shallow_check": "2026-08-20",
       "last_deep_review": "2026-08-18",
       "access_notes": "Browser review verified editable templates and Lottie, GIF, MP4 export labels. Current site terms grant only personal, non-commercial transitory use of site materials; verify the selected template and intended use before editing or exporting."
     },
@@ -398,7 +398,7 @@
         "url": null
       },
       "added_at": "2026-08-18",
-      "last_shallow_check": "2026-08-18",
+      "last_shallow_check": "2026-08-20",
       "last_deep_review": "2026-08-18",
       "access_notes": "The site documents motion details from named products and exposes no copyable implementation or clear reuse license. Use it only for inspiration and behavior-first recreation without copying brand assets or source."
     },
@@ -456,7 +456,7 @@
         "url": null
       },
       "added_at": "2026-08-18",
-      "last_shallow_check": "2026-08-18",
+      "last_shallow_check": "2026-08-20",
       "last_deep_review": "2026-08-18",
       "access_notes": "Browser review verified the component index, previews, customization controls, and public Copy/Export actions for Framer and React. No clear site-level code license was found, so verify the selected component's terms before copying."
     },
@@ -478,9 +478,147 @@
         "url": null
       },
       "added_at": "2026-08-18",
-      "last_shallow_check": "2026-08-18",
+      "last_shallow_check": "2026-08-20",
       "last_deep_review": "2026-08-18",
       "access_notes": "Browser review verified animated React component previews and public Copy actions. The linked public GitHub repository did not expose a license file during review, so treat copying as unavailable until item or repository terms are clarified."
+    },
+    {
+      "id": "inspira-ui",
+      "name": "Inspira UI",
+      "status": "active",
+      "auth": "none",
+      "kind": "component-library",
+      "homepage": "https://inspira-ui.com/",
+      "routes": {
+        "examples": "https://inspira-ui.com/docs/en/components",
+        "categories": {
+          "ambient": "https://inspira-ui.com/docs/en/components/backgrounds/aurora-background",
+          "hover": "https://inspira-ui.com/docs/en/components/cards/3d-card",
+          "text": "https://inspira-ui.com/docs/en/components/text-animations/blur-reveal",
+          "three-d": "https://inspira-ui.com/docs/en/components/visualization/globe"
+        }
+      },
+      "capabilities": ["snippet", "package", "recreate", "inspiration"],
+      "stacks": ["vue", "typescript", "tailwind", "webgl"],
+      "tags": ["background", "particle", "text", "hover", "scroll", "three-d", "shader"],
+      "license": {
+        "status": "explicit",
+        "url": "https://github.com/unovue/inspira-ui/blob/main/LICENSE"
+      },
+      "added_at": "2026-08-20",
+      "last_shallow_check": "2026-08-20",
+      "last_deep_review": "2026-08-20",
+      "access_notes": "The official component docs and MIT repository were reviewed on 2026-08-20. Browser motion evidence admitted 142 exact component pages; two candidates without observed motion were excluded. Verify current dependencies, imports, and third-party assets before reuse."
+    },
+    {
+      "id": "lightswind-ui",
+      "name": "Lightswind UI",
+      "status": "active",
+      "auth": "none",
+      "kind": "component-library",
+      "homepage": "https://lightswind.com/",
+      "routes": {
+        "examples": "https://lightswind.com/components",
+        "blocks": "https://lightswind.com/blocks",
+        "categories": {
+          "component": "https://lightswind.com/components",
+          "scroll": "https://lightswind.com/blocks",
+          "feedback": "https://lightswind.com/blocks",
+          "three-d": "https://lightswind.com/components/3d"
+        }
+      },
+      "capabilities": ["snippet", "package", "recreate", "inspiration"],
+      "stacks": ["react", "typescript", "tailwind", "webgl"],
+      "tags": ["component", "block", "feedback", "scroll", "background", "three-d", "dashboard"],
+      "license": {
+        "status": "explicit",
+        "url": "https://github.com/codewithMUHILAN/Lightswind-UI-Library/blob/Master/LICENSE"
+      },
+      "added_at": "2026-08-20",
+      "last_shallow_check": "2026-08-20",
+      "last_deep_review": "2026-08-20",
+      "access_notes": "The official sitemap, component registry, block registry, and MIT repository were reviewed on 2026-08-20. Browser motion evidence admitted 272 exact component or block preview pages; empty, static, or broken previews were excluded. Verify current copy or CLI paths, dependencies, data placeholders, and third-party assets before reuse."
+    },
+    {
+      "id": "ui-beats",
+      "name": "UI Beats",
+      "status": "active",
+      "auth": "none",
+      "kind": "component-library",
+      "homepage": "https://uibeats.com/",
+      "routes": {
+        "examples": "https://uibeats.com/docs/getting-started/introduction",
+        "categories": {
+          "entrance": "https://uibeats.com/docs/animation/animated-list",
+          "ambient": "https://uibeats.com/docs/background/particles",
+          "feedback": "https://uibeats.com/docs/button/ripple-button",
+          "text": "https://uibeats.com/docs/text/text-scramble"
+        }
+      },
+      "capabilities": ["snippet", "package", "recreate", "inspiration"],
+      "stacks": ["react", "typescript", "tailwind"],
+      "tags": ["animation", "background", "button", "card", "component", "text", "motion"],
+      "license": {
+        "status": "explicit",
+        "url": "https://github.com/nikhils4/ui-beats/blob/main/package.json"
+      },
+      "added_at": "2026-08-20",
+      "last_shallow_check": "2026-08-20",
+      "last_deep_review": "2026-08-20",
+      "access_notes": "The recovered public sitemap, exact docs pages, exposed copy or registry paths, and MIT package metadata were reviewed on 2026-08-20. Browser motion evidence admitted 54 exact cases; one scratch interaction without observed motion was excluded. Verify current dependencies and bundled assets before reuse."
+    },
+    {
+      "id": "vanta-js",
+      "name": "Vanta.js",
+      "status": "active",
+      "auth": "none",
+      "kind": "code-library",
+      "homepage": "https://www.vantajs.com/",
+      "routes": {
+        "examples": "https://www.vantajs.com/",
+        "categories": {
+          "ambient": "https://www.vantajs.com/?effect=waves",
+          "particles": "https://www.vantajs.com/?effect=birds",
+          "three-d": "https://www.vantajs.com/?effect=globe"
+        }
+      },
+      "capabilities": ["snippet", "package", "recreate", "inspiration"],
+      "stacks": ["javascript", "react", "vue", "webgl"],
+      "tags": ["background", "webgl", "three-d", "particle", "shader", "pointer", "ambient"],
+      "license": {
+        "status": "explicit",
+        "url": "https://github.com/tengbao/vanta/blob/master/LICENSE.md"
+      },
+      "added_at": "2026-08-20",
+      "last_shallow_check": "2026-08-20",
+      "last_deep_review": "2026-08-20",
+      "access_notes": "The official effect routes and MIT repository were reviewed on 2026-08-20. Browser motion evidence admitted 11 exact WebGL effects; one missing target and two effects without observed frame change were excluded. Verify current Vanta, Three.js or p5.js versions and the target performance budget before reuse."
+    },
+    {
+      "id": "ldrs",
+      "name": "LDRS",
+      "status": "active",
+      "auth": "none",
+      "kind": "code-library",
+      "homepage": "https://uiball.com/ldrs/",
+      "routes": {
+        "examples": "https://uiball.com/ldrs/",
+        "source": "https://github.com/GriffinJohnston/ldrs/tree/main/src/auto",
+        "categories": {
+          "loading": "https://uiball.com/ldrs/"
+        }
+      },
+      "capabilities": ["snippet", "package", "recreate", "inspiration"],
+      "stacks": ["css", "javascript", "react", "web-component"],
+      "tags": ["loading", "spinner", "loader", "css", "svg", "web-component"],
+      "license": {
+        "status": "explicit",
+        "url": "https://github.com/GriffinJohnston/ldrs/blob/main/LICENSE"
+      },
+      "added_at": "2026-08-20",
+      "last_shallow_check": "2026-08-20",
+      "last_deep_review": "2026-08-20",
+      "access_notes": "The current official page lists 44 named HTML, CSS and SVG loaders, and the exact source files are public under MIT. Because the site has no per-loader permalink, records use exact source links plus the collection locator and remain visually unverified until the selected named loader is opened."
     }
   ]
 }

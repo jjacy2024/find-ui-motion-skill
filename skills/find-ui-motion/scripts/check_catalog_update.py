@@ -110,7 +110,7 @@ def fetch_manifest(
     if not _host_allowed(url, config.get("allowed_manifest_hosts", [])):
         raise ValueError("manifest host is not allowed by update-config.json")
 
-    headers = {"Accept": "application/json", "User-Agent": "find-ui-motion/0.9.1"}
+    headers = {"Accept": "application/json", "User-Agent": "find-ui-motion/0.9.3"}
     if state.get("etag"):
         headers["If-None-Match"] = state["etag"]
     request = Request(url, headers=headers)

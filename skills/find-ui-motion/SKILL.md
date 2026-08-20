@@ -1,6 +1,6 @@
 ---
 name: find-ui-motion
-description: Find UI motion for Web and mobile, including 网页动效、App 动效、交互动效、微动效和动画灵感. Use when a user wants to 找、搜索、推荐、比较、预览、复制、复刻、还原或实现界面动画; mentions hover, gesture, transition, navigation, scroll, loading, text animation, page or screen entrance, CSS, JavaScript, React, Vue, SwiftUI, Jetpack Compose, Flutter, React Native, Lottie, or Rive; asks to see real source examples; has only a vague motion idea; asks for 动效网站或动画参考; or provides a webpage, app screenshot, link, image, or video as a motion reference. Guide vague requests through questions, exhaust deterministic local taxonomy, full-index, and synonym-expanded retrieval before bounded Web supplementation, show live-verified source evidence, then deliver a platform-compatible public snippet, package integration, licensed asset, or independent recreation. Do not use for static UI design, ordinary development without motion, or general video editing.
+description: Find UI motion for Web and mobile, including 网页动效、App 动效、交互动效、微动效和动画灵感. Use when a user wants to 找、搜索、推荐、比较、预览、复制、复刻、还原或实现界面动画; mentions hover, gesture, transition, navigation, scroll, loading, text animation, page or screen entrance, CSS, JavaScript, React, Vue, SwiftUI, Jetpack Compose, Flutter, React Native, Lottie, or Rive; asks to see real source examples; has only a vague motion idea; asks for 动效网站或动画参考; or provides a webpage, app screenshot, link, image, or video as a motion reference. Guide vague requests through questions, exhaust deterministic local taxonomy, full-index, and synonym-expanded retrieval before bounded Web supplementation, show live-verified source evidence, then deliver a platform-compatible public snippet, package integration, licensed asset, or independent recreation. Prioritize code-backed, target-compatible cases; search video-only cases only after explicit user authorization. Do not use for static UI design, ordinary development without motion, or general video editing.
 ---
 
 # Find UI Motion
@@ -8,6 +8,12 @@ description: Find UI motion for Web and mobile, including 网页动效、App 动
 Use the local catalog for fast recall. Exhaust its deterministic retrieval ladder before external discovery. Access selected websites to resolve concrete item links, inspect real motion, verify current source material, or perform one bounded supplement after a confirmed local coverage gap.
 
 Keep the source environment and target platform separate. A Web example may be valid visual evidence for a mobile interaction, but its code is not automatically compatible with the mobile runtime.
+
+## Announce the bundled Catalog once
+
+On the first Skill use in each task, read [catalog-overview.md](references/catalog-overview.md), run its local summary command, and include the returned source-site and case counts once in the first substantive reply. This notice must not delay the user's motion task or repeat later in the task.
+
+If the user expresses interest in the website list, use the same reference to return every Catalog source as a clickable public homepage link. Do not open any source automatically; the user manually chooses which link to visit unless they separately ask the agent to browse it.
 
 ## Route the request
 
@@ -18,6 +24,18 @@ Choose exactly one primary workflow, then transition when the user makes a selec
 3. **Reference rebuild**: the user supplies or selects a reference and wants usable output. Read [reference-rebuild.md](references/reference-rebuild.md).
 
 Do not force a vague request into exact search. Do not treat a visually similar result as permission to copy its source.
+
+## Require authorization for video-case search
+
+Start every task with `video_case_search_authorized=false`. Change it to `true` only when the user explicitly asks for video cases or explicitly confirms a proposed video supplement. A request such as “看案例”, “酷炫一点”, “想看效果”, or “给我参考” is not video-search authorization by itself. A user-supplied video may be analyzed as the supplied reference, but it does not authorize searching for additional video cases.
+
+While authorization is false:
+
+- Prioritize code-backed interactive demos, intentionally exposed snippets, documented packages or components, target-compatible Rive or Lottie runtime examples, and cases with a credible platform-native recreation path.
+- Exclude video-only sources and video-platform searches from candidate pools, result quotas, external supplements, and follow-up pages. A video-only case is consumed only as recorded media and has no verified snippet, package, runtime asset, component API, or credible implementation path attached to the same item.
+- Do not ask for video permission when enough code-implementable cases can satisfy the request. If the code-first pool is insufficient, report the verified shortfall and ask whether the user wants a separately labeled video supplement; do not start that search before confirmation.
+
+A transient clip recorded from a code-backed interactive demo for motion analysis is evidence capture, not video-case search. A code-backed Rive, Lottie, package, or component case does not become video-only merely because its publisher uses a video preview.
 
 ## Use the local catalog
 
@@ -33,7 +51,15 @@ Add `--stack`, `--capability`, or `--kind` only when the user has supplied those
 
 Treat search scores as retrieval hints, not final design judgment. Inspect the best matches and remove incompatible or repetitive candidates. Never infer quality from source volume; preserve cross-source diversity when several sources contain similarly relevant concrete items.
 
+Before returning candidates, classify them internally as `code-backed | runtime-backed | video-only`. Unless video search is authorized, remove `video-only`, then rank the remaining semantically relevant cases by target-platform implementation readiness before source spectacle or visual polish.
+
 Let `auto` decide whether to escalate from taxonomy recall to a text scan of every eligible local example and then bundled bilingual query expansion. Never open Google or another search engine before the script completes the local ladder and returns `external_search.recommended=true`. Announce the local coverage gap before one focused external query. Label every such item `外网补充`, keep it separate from `本地准确匹配` and `本地相邻参考`, and apply the same direct-item, deduplication, and source-health gates.
+
+## Offer high-quality new sources for review
+
+When a bounded external supplement produces an `exact`, high-confidence, live `render_verified` concrete item from a code-backed or runtime-backed domain absent from the current `sites.json`, read [source-suggestion.md](references/source-suggestion.md). Run its deterministic eligibility check and offer the source once per domain per task. Stay silent when any gate fails.
+
+The offer must use the approved message from that reference. After the user agrees, the proposed submission contains exactly one field, `网站名称与域名`. Never submit automatically: prefer opening a prefilled GitHub Issue for the user to submit, and use email only as an explicitly configured fallback. Creating an Issue or sending email requires separate explicit authorization after the user sees the one-field payload.
 
 Generate a synthetic local direction board only when comparing newly synthesized motion DNA:
 
@@ -50,6 +76,7 @@ For discovery after any necessary inspiration conversation, return a quick metad
 - Read [source-health.md](references/source-health.md) and apply its current content-health gate before calling any dynamic or interactive item eligible. An outer-page HTTP 200, `last_shallow_check`, or catalog record alone never proves that the named item still renders.
 - Show exactly eight eligible concrete case links by default and never more than ten when the user explicitly requests more. Include only items classified `render_verified` or `capture_restricted`. Reduce the count below eight only when fewer than eight unique, relevant, content-healthy cases remain; return every eligible remainder and state the shortfall reason. Never pad the list with weak, duplicate, inaccessible, broken, shell-only, or non-item links.
 - Never count a local `adjacent` case as an exact result merely to reach eight. When external supplementation is needed, present local exact, local adjacent, and external cases under visibly separate provenance labels.
+- Count code-backed or runtime-backed cases first. Do not include or count a video-only item unless `video_case_search_authorized=true`; when authorized, place those items under `视频补充（已授权）` instead of mixing them into the default code-first list.
 - Link directly to each public item or demo. For a live-observed `official-media` record, use its `preview_url` as `观看动效` and keep the item `url` separately as `来源页`; never send an empty wrapper as the watch link. Do not put a category, search, collection, or homepage in the case list; label those separately as `继续探索入口`.
 - Use one short sentence per case. Omit long Motion Briefs, Motion DNA cards, YAML, and generic prose from the visible quick result.
 - Label the pass `快速初筛，尚未完成视觉复核` and state whether visual deep matching will continue.

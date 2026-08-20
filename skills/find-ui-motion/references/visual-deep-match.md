@@ -2,6 +2,10 @@
 
 Use this workflow after quick metadata retrieval when the user permits deeper matching. Its purpose is to inspect what candidate motions actually do, not to replace text retrieval with a slow crawl of every site.
 
+Build the fixed pool from code-backed and runtime-backed cases by default. Exclude video-only sources unless `video_case_search_authorized=true`. Captured clips of code-backed interactive demos remain valid `video-trajectory` evidence and do not require video-case search authorization.
+
+After formal ranking, route any external candidate with `match_quality=exact`, `evidence_confidence=高`, live `render_verified` evidence, and a code-backed or runtime-backed concrete item through [source-suggestion.md](source-suggestion.md). This invitation is outside the ranked result count and appears at most once per new domain in the task.
+
 ## Start and stop contract
 
 Before opening candidates, send one concise progress update that states:

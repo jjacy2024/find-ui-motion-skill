@@ -2,6 +2,8 @@
 
 Apply this gate before showing any direct dynamic or interactive case link. A successful outer-page request proves only that the publisher's shell is reachable; it does not prove that the named item still exists or renders.
 
+Passing source health never grants permission to search or return a video-only case. Apply the code-first and video authorization policy before this health gate; use this file only to decide whether an already eligible source currently renders.
+
 ## Collect current browser evidence
 
 Open the exact public item in an available browser, wait for the catalog `settle_ms`, then record only visible or browser-reported evidence. When an `official-media` record exposes `preview_url`, treat that exact official item preview as the watch target and keep `url` as the attribution/source page:

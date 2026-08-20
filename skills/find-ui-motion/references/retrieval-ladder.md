@@ -2,6 +2,18 @@
 
 Use this deterministic ladder for every concrete-case discovery request. Exhaust local retrieval before considering the public Web.
 
+## Apply the code-first source policy
+
+Treat `video_case_search_authorized=false` as the default. The local script may recall mixed source types, so apply this policy after every retrieval stage and before computing the user-facing eligible count:
+
+- `code-backed`: the exact item exposes an intentional snippet, documented package or component API, or a credible implementation source for the target stack.
+- `runtime-backed`: the exact item provides a compatible Rive, Lottie, or similar runtime asset or documented integration path. A video used only to preview this same implementable item does not make it video-only.
+- `video-only`: the item is useful only as recorded media or a video template and has no verified code, runtime asset, component API, or credible implementation path attached to it.
+
+Rank `code-backed` and `runtime-backed` cases first. Exclude `video-only` cases from candidate pools, exact counts, the eight-item quota, external supplements, and follow-up pages unless the user explicitly asks for video cases or confirms a proposed video supplement. An uploaded video can remain the user's reference without changing this authorization state.
+
+Capturing a transient clip of a code-backed interactive demo for keyframe or trajectory analysis is allowed and is not video-case search.
+
 ## Run the local ladder
 
 Run from the Skill directory:
@@ -43,6 +55,10 @@ Before opening a search engine or an external result, tell the user:
 ```
 
 Use the emitted `external_search.query` for one focused initial query. Do not start an open-ended crawl. Search only for the missing mechanisms or combinations, not for already-covered facets.
+
+While video search is unauthorized, rewrite only the source-type portion of the focused query to target public code demos, snippets, packages, components, GitHub or CodePen examples, and the confirmed target stack. Exclude video platforms, social reels, stock footage, and video-template pages. If fewer than the requested number survive the code-first and source-health gates, report that code-case shortfall and ask whether the user wants a separate video supplement. Do not run it until the user confirms.
+
+After confirmation, keep the same motion brief, run one bounded video-focused supplement, and label every surviving item `视频补充（已授权）`. Never treat authorization for one search as standing permission for later tasks.
 
 For every external item:
 

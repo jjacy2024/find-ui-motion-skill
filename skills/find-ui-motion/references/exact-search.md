@@ -4,6 +4,8 @@
 
 Treat requests phrased as “find”, “show”, “recommend”, or “give me options” as discovery, even when the request contains enough detail to write code.
 
+- Default to `video_case_search_authorized=false`. A user must explicitly request video cases or explicitly approve a proposed video supplement before any video-only source search begins. Generic requests for examples, inspiration, or something cool do not authorize video search.
+- Among semantically eligible candidates, prioritize cases with an attached public snippet, documented package or component API, compatible Rive or Lottie runtime asset, or credible platform-native recreation path. Exclude video-only cases from retrieval, result quotas, and follow-up pages while authorization is false.
 - Return exactly eight eligible concrete item links in the quick pass by default and at most ten when explicitly requested before emitting deployable code. Read and apply [source-health.md](source-health.md) first; only `render_verified` and `capture_restricted` items are eligible. Reduce below eight when the current filters yield fewer unique, relevant, content-healthy cases; return every eligible remainder, state why the target was not reached, and never add weak, duplicate, shell-only, or broken links.
 - Do not turn small add-ons to one base effect into separate candidates. Vary the core motion model, trigger response, or visual channel.
 - Do not select for the user unless they ask the agent to decide. Mark one candidate `recommended` when useful, but preserve the comparison.
@@ -21,9 +23,10 @@ Treat requests phrased as “find”, “show”, “recommend”, or “give me
    - feeling and intensity;
    - target platform;
    - stack and delivery constraints.
+   - video-case search authorization.
 2. Infer harmless omissions and label them `inferred`. Ask only when the missing answer changes the result class.
-3. Read [retrieval-ladder.md](retrieval-ladder.md), then run `scripts/search_catalog.py` with `--strategy auto --target-count 8 --trace` and the user's confirmed filters. Let the script exhaust taxonomy, full-index, and expanded local retrieval before any Web supplement.
-4. Keep `本地准确匹配`, `本地相邻参考`, and `外网补充` visibly separate. If and only if `external_search.recommended=true`, announce the local coverage gap and run one focused external query using the emitted query. Group near-duplicate results and canonical URLs across every provenance class.
+3. Read [retrieval-ladder.md](retrieval-ladder.md), then run `scripts/search_catalog.py` with `--strategy auto --target-count 8 --trace` and the user's confirmed filters. Let the script exhaust taxonomy, full-index, and expanded local retrieval before any Web supplement. Post-filter and rerank the pool by the code-first source policy before counting eligible exact results.
+4. Keep `本地准确匹配`, `本地相邻参考`, and `外网补充` visibly separate. If and only if `external_search.recommended=true`, announce the local coverage gap and run one focused external query using the emitted query. While video search is unauthorized, constrain that query to code demos, snippets, packages, components, runtime assets, and target-platform implementation sources; exclude video platforms and video-template results. Group near-duplicate results and canonical URLs across every provenance class.
 5. Resolve concrete item URLs, collect current source-health evidence after `settle_ms`, and classify ambiguous observations with `scripts/classify_source_health.py`. Exclude `shell_reachable` and `broken` items before returning sparse quick links with one fit sentence each. Put collection or search routes under `继续探索入口`, never in the case list.
 6. Unless the user requests quick results only, read [visual-deep-match.md](visual-deep-match.md), recall 48 cases by default and at most 64, then narrow to the documented 24-item live-check and 16-item capture limits before returning eight eligible ranked results by default or at most ten when explicitly requested.
 7. When the user explicitly asks for a side-by-side comparison or saved result, read [source-preview.md](source-preview.md) and build verified evidence only after the direct links are available.
@@ -31,16 +34,16 @@ Treat requests phrased as “find”, “show”, “recommend”, or “give me
 
 ## Ranking priorities
 
-Apply these priorities after the local score:
+Apply these priorities after removing semantically irrelevant candidates:
 
-1. semantic and interaction fit;
-2. compatibility with the target platform and stack;
+1. code implementation readiness and compatibility with the target platform and stack;
+2. semantic and interaction fit;
 3. delivery capability requested by the user;
 4. source and license clarity;
 5. site health and freshness;
 6. dependency, accessibility, and performance cost.
 
-Never rank a public snippet above a better behavioral match solely because it is easy to copy. Explain the tradeoff instead.
+Within the semantically eligible pool, rank a code-backed case above a video-only reference by default. Do not promote a weak or different behavior solely because code exists. When the user authorizes video search, preserve code-first results and label video results `视频补充（已授权）` unless the user explicitly asks to prioritize video inspiration.
 
 ## Internal result record
 
