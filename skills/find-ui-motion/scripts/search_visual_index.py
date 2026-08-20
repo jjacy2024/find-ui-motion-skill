@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Search a compact UI-motion visual index and route only ambiguous cases to a VLM."""
+"""Retrieve and fuse compact visual-index candidates for later confidence gating."""
 
 from __future__ import annotations
 
@@ -162,6 +162,9 @@ def search_index(
     returned_count = len(results)
     return {
         "status": "ok" if encoder is not None else "degraded",
+        "result_role": "candidate-ordering-only",
+        "final_confidence_gate_required": True,
+        "final_confidence_gate": "Add semantic match quality and reviewed channel scores, then run rank_visual_matches.py before presenting formal results.",
         "query": query,
         "semantic_query": semantic_query,
         "case_count": len(case_ids),
@@ -171,7 +174,7 @@ def search_index(
         "results": results,
         "target_result_count": limit,
         "returned_result_count": returned_count,
-        "shortfall_reason": None if returned_count == limit else f"Only {returned_count} unique eligible indexed cases were available.",
+        "shortfall_reason": None if returned_count == limit else f"Only {returned_count} unique indexed candidates were available for fusion.",
         "vlm_review": {
             **vlm_review,
             "purpose": "Inspect real keyframes only when rankers disagree; do not analyze the full catalog with a VLM.",

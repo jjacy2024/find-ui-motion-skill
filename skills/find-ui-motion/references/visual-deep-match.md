@@ -31,16 +31,16 @@ Record the actual returned count before live checking. If fewer than the request
 
 Read [source-health.md](source-health.md) and require current content health before capture. Never analyze category or search routes as if they were examples. Exclude `shell_reachable`, `broken`, and `open-source-only` records from visual ranking until the named case has been resolved and observed in its `preview_url`; otherwise keep them metadata-only. Stop when the first applicable condition is met:
 
-- eight eligible matches have been visually ranked;
+- eight `exact` matches with `高` or `中` evidence confidence have passed the final gate;
 - 24 candidates have received current browser health checks;
 - 16 healthy candidates have been captured and analyzed;
 - the filtered concrete-item pool is exhausted;
 - three consecutive candidates cannot be accessed or triggered;
 - the user stops or changes the request.
 
-Do not fill a quota with duplicates, category routes, or weak candidates.
+Do not fill a quota with duplicates, category routes, adjacent matches, or low-confidence candidates. When fewer than eight formal results qualify, keep reviewing later candidates from the fixed pool until a documented stopping condition reaches the 24 live-check or 16 capture boundary. Do not stop merely because the first eight captured candidates have been ranked.
 
-Treat eight as the default result target, not a soft maximum. Reduce below eight only when the qualifying pool is exhausted, 24 candidates have been live-checked, 16 healthy candidates have been captured, three consecutive candidates fail access or triggering, or the user stops or changes the request. Return every eligible result gathered so far and state the exact shortfall reason.
+Treat eight as the default result target, not a soft maximum. Reduce below eight only when the qualifying pool is exhausted, 24 candidates have been live-checked, 16 healthy candidates have been captured, three consecutive candidates fail access or triggering, or the user stops or changes the request. Return every qualifying exact high/medium-confidence result gathered so far and state the exact confidence shortfall reason. Report the remaining or exhausted live-check and capture counters; never promote a low-confidence result merely to reach eight.
 
 ## Analyze real motion
 
@@ -53,6 +53,13 @@ For each candidate:
 5. When two or more candidates have real captures, read `visual-retrieval.md`, build or reuse a compatible external OpenCLIP index, and fuse metadata, full-frame, dynamic-region, and motion ranks with RRF.
 6. Inspect retained keyframes with a vision-capable model only when the fusion result says `vlm_review.required=true`. Record the visible target, state change, hierarchy, occlusion or reveal pattern, and likely interaction meaning.
 7. Delete or leave the media in task-scoped transient output. Never add third-party captures to the Skill or catalog.
+
+After real inspection, assign two independent fields to every candidate:
+
+- `match_quality: exact | adjacent | unresolved` describes semantic fit to the requested trigger, target, state change, direction, and platform constraints. Missing is `unresolved`, not an implicit exact match.
+- `confidence: 高 | 中 | 低` describes how consistently the available evidence channels support that classification. It does not describe semantic closeness and is not a probability.
+
+Exclude `unresolved` from ranking. Keep high/medium `adjacent` cases separately labeled and never count them toward the formal target. Send low-confidence exact cases to `low_confidence_alternates`, not `results`.
 
 Record an analysis depth for every candidate:
 
@@ -92,11 +99,24 @@ Rank only `video-trajectory` and `keyframes` candidates. Prefer these independen
 - DIS or Farneback motion-signature similarity;
 - platform, rights, source quality, and delivery rank.
 
-Fuse available ranks with Reciprocal Rank Fusion through `scripts/search_visual_index.py` or `scripts/rank_visual_matches.py`. Do not average raw cosine, trajectory, and metadata scores as if they were calibrated. Treat every score as a relative ordering aid, not a probability. Do not show fake precision such as `92% match`. Derive `高`, `中`, or `低` confidence from rank agreement and disclose that routing thresholds remain heuristic until calibrated.
+Fuse available ranks with Reciprocal Rank Fusion. Use `scripts/search_visual_index.py` only to retrieve and order indexed candidates; it is not a final confidence gate. Before presentation, create a reviewed manifest with `match_quality`, `analysis_depth`, the four normalized channel scores expected by `scripts/rank_visual_matches.py`, and real `review_progress` counters, then run that script.
 
-Honor the selective VLM decision. Stop before VLM review when independent rankers agree. When they disagree, review at most the five returned IDs and report the real counter. Never send all 48-64 recalled candidates or all 24 live-checked candidates to a VLM.
+```json
+{
+  "review_progress": {"live_checked": 12, "captured": 8, "stop_reason": "none"},
+  "candidates": [{
+    "id": "case-id", "title": "Case", "url": "https://example.com/item",
+    "analysis_depth": "keyframes", "match_quality": "exact", "vlm_verdict": "not-reviewed",
+    "scores": {"text_fit": 0.9, "visual_semantic_fit": 0.9, "motion_trajectory_fit": 0.8, "delivery_quality": 0.8}
+  }]
+}
+```
 
-Return exactly eight eligible results by default and never more than ten when explicitly requested. Sort highest first. Reduce below eight only under the documented stopping conditions, never merely for brevity; state the shortfall reason. Each result contains only its rank, title with direct item link, one-sentence match reason, confidence, and analysis depth. State access, trigger, or rights failures after the ranked list.
+Do not average raw cosine, trajectory, and metadata scores as if they were calibrated. `rank_visual_matches.py` compares each candidate score with that channel's best reviewed score. A channel is strong at a ratio of at least `0.85` and supporting at a ratio of at least `0.65`. Assign `高` for at least three strong channels; assign `中` for at least two strong channels or at least three supporting channels; otherwise assign `低`. These are heuristic rank-agreement signals, not probabilities. Do not show fake precision such as `92% match`.
+
+Honor the selective VLM decision. Stop before VLM review when independent rankers agree. When they disagree, review at most the five returned IDs and report the real counter. Record `vlm_verdict: confirmed | contradicted | inconclusive` only for reviewed candidates. A VLM-confirmed low-confidence exact case may be promoted once to `中`; a contradicted case must be excluded; VLM review never changes `adjacent` into `exact`. Never send all 48-64 recalled candidates or all 24 live-checked candidates to a VLM.
+
+Return exactly eight formal results by default and never more than ten when explicitly requested. Formal eligibility is `match_quality == exact && confidence in {高, 中}`. Sort highest first. If the ranking script returns `status=needs-more-review`, continue through later fixed-pool candidates without exceeding 24 live checks or 16 captures. Reduce below eight only after it returns or can truthfully be updated to `status=confidence-shortfall` under the documented stopping conditions. Each result contains only its rank, title with direct item link, one-sentence match reason, confidence, and analysis depth. State access, trigger, rights, and confidence failures after the ranked list.
 
 ## Report real progress
 

@@ -48,7 +48,7 @@ def read_resource_bytes(
     url = manifest[url_field]
     if not host_allowed(url, config.get("allowed_catalog_hosts", [])):
         raise ValueError(f"{url_field} host is not allowed by update-config.json")
-    request = Request(url, headers={"Accept": "application/json", "User-Agent": "find-ui-motion/0.9.0"})
+    request = Request(url, headers={"Accept": "application/json", "User-Agent": "find-ui-motion/0.9.1"})
     with urlopen(request, timeout=float(config.get("timeout_seconds", 2.0)) * 3) as response:
         payload = response.read(max_bytes)
     if len(payload) >= max_bytes:

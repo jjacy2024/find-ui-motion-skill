@@ -51,6 +51,8 @@ Add `--reference-media <clip-or-frames>` when the user supplies a real reference
 
 Fuse metadata, full-frame OpenCLIP, dynamic-region OpenCLIP, and motion-signature ranks with RRF. Treat RRF and cosine values as relative ordering aids, never match probabilities.
 
+Treat this output as retrieval/fusion evidence, not a presentable final result. `search_visual_index.py` does not know whether a candidate is semantically `exact`, `adjacent`, or `unresolved`, and its first eight fused cases may include weak evidence. After live review, convert the retained candidates into the manifest expected by `scripts/rank_visual_matches.py`, include the real `review_progress.live_checked` and `review_progress.captured` counters, and use only that script's `results` as the formal list. If it returns `status=needs-more-review`, inspect later candidates within the fixed 24/16 budgets.
+
 ## Selective VLM review
 
 Read the returned `vlm_review` object:
@@ -60,6 +62,7 @@ Read the returned `vlm_review` object:
 - Reuse the captured keyframes. Prefer one labeled four-frame contact sheet and a fixed compact motion-signature output over many independent image inputs.
 - Respect `--vlm-policy never` when the user requests no deep review and `always` only when the user explicitly requests direct VLM inspection.
 - Treat routing thresholds as heuristics until evaluated on labeled UI-motion queries.
+- Record a per-candidate `vlm_verdict` after review. Confirmation may promote one low-confidence exact case to medium; contradiction excludes the case; neither changes semantic match quality.
 
 ## Degrade explicitly
 

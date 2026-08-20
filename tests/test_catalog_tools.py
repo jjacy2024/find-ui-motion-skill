@@ -437,6 +437,8 @@ class CatalogToolsTest(unittest.TestCase):
             "快速初筛，尚未完成视觉复核",
             "继续探索入口",
             "Do not create an aggregation page",
+            "Formal results must be `exact` and `高` or `中`",
+            "continue checking later candidates within the existing 24 live-check and 16 capture budgets",
         ):
             self.assertIn(rule, skill_text)
         for rule in (
@@ -451,8 +453,14 @@ class CatalogToolsTest(unittest.TestCase):
             "OpenCLIP full-frame similarity",
             "Reciprocal Rank Fusion",
             "vlm_review.required=true",
-            "Return exactly eight eligible results by default",
-            "never merely for brevity",
+            "eight `exact` matches with `高` or `中` evidence confidence",
+            "Do not stop merely because the first eight captured candidates have been ranked",
+            "match_quality: exact | adjacent | unresolved",
+            "strong at a ratio of at least `0.85`",
+            "supporting at a ratio of at least `0.65`",
+            "status=needs-more-review",
+            "status=confidence-shortfall",
+            "low_confidence_alternates",
             "Do not show fake precision",
             "召回 48/64",
             "实时检查 12/24",
@@ -490,6 +498,8 @@ class CatalogToolsTest(unittest.TestCase):
             "RRF",
             "vlm_review",
             "status=degraded",
+            "retrieval/fusion evidence, not a presentable final result",
+            "within the fixed 24/16 budgets",
         ):
             self.assertIn(rule, retrieval_rules)
 
@@ -589,6 +599,7 @@ class CatalogToolsTest(unittest.TestCase):
                 "title": "Medium",
                 "url": "https://example.com/medium?utm_source=test",
                 "analysis_depth": "keyframes",
+                "match_quality": "exact",
                 "scores": {
                     "text_fit": 0.7,
                     "visual_semantic_fit": 0.7,
@@ -601,6 +612,7 @@ class CatalogToolsTest(unittest.TestCase):
                 "title": "Best",
                 "url": "https://example.com/best#demo",
                 "analysis_depth": "video-trajectory",
+                "match_quality": "exact",
                 "scores": {
                     "text_fit": 0.95,
                     "visual_semantic_fit": 0.9,
@@ -613,6 +625,7 @@ class CatalogToolsTest(unittest.TestCase):
                 "title": "Metadata only",
                 "url": "https://example.com/metadata",
                 "analysis_depth": "metadata-only",
+                "match_quality": "exact",
                 "scores": {
                     "text_fit": 1.0,
                     "visual_semantic_fit": 1.0,
@@ -625,6 +638,7 @@ class CatalogToolsTest(unittest.TestCase):
                 "title": "Duplicate",
                 "url": "https://example.com/medium",
                 "analysis_depth": "keyframes",
+                "match_quality": "exact",
                 "scores": {
                     "text_fit": 0.8,
                     "visual_semantic_fit": 0.8,
@@ -640,12 +654,159 @@ class CatalogToolsTest(unittest.TestCase):
         self.assertEqual(len(result["excluded"]), 2)
         self.assertEqual(result["target_result_count"], 10)
         self.assertEqual(result["returned_result_count"], 2)
-        self.assertIsNotNone(result["shortfall_reason"])
-        self.assertIn("not a probability", result["score_note"])
+        self.assertEqual(result["status"], "needs-more-review")
+        self.assertTrue(result["replacement_search"]["required"])
+        self.assertEqual(result["replacement_search"]["review_progress"]["remaining_live_checks"], 24)
+        self.assertEqual(result["replacement_search"]["review_progress"]["remaining_captures"], 16)
+        self.assertIsNotNone(result["continuation_reason"])
+        self.assertIsNone(result["shortfall_reason"])
+        self.assertIn("not probabilities", result["score_note"])
         default_result = rank_manifest({"query": "test", "candidates": candidates})
         self.assertEqual(default_result["target_result_count"], 8)
         with self.assertRaisesRegex(ValueError, "between 1 and 10"):
             rank_manifest({"candidates": []}, limit=11)
+
+    def test_visual_ranking_separates_semantic_fit_and_confidence(self):
+        def candidate(case_id, scores, *, match_quality="exact", vlm_verdict="not-reviewed"):
+            return {
+                "id": case_id,
+                "title": case_id,
+                "url": f"https://example.com/{case_id}",
+                "analysis_depth": "keyframes",
+                "match_quality": match_quality,
+                "vlm_verdict": vlm_verdict,
+                "scores": dict(zip(("text_fit", "visual_semantic_fit", "motion_trajectory_fit", "delivery_quality"), scores)),
+            }
+
+        result = rank_manifest(
+            {
+                "query": "exact motion",
+                "candidates": [
+                    candidate("exact-high", (1.0, 1.0, 1.0, 1.0)),
+                    candidate("exact-medium", (0.9, 0.9, 0.5, 0.5)),
+                    candidate("exact-low", (0.8, 0.4, 0.4, 0.4)),
+                    candidate("adjacent-high", (0.95, 0.95, 0.95, 0.95), match_quality="adjacent"),
+                    candidate("unresolved", (1.0, 1.0, 1.0, 1.0), match_quality="unresolved"),
+                    candidate("contradicted", (1.0, 1.0, 1.0, 1.0), vlm_verdict="contradicted"),
+                ],
+            },
+            limit=4,
+        )
+        self.assertEqual({item["id"] for item in result["results"]}, {"exact-high", "exact-medium"})
+        self.assertTrue(all(item["match_quality"] == "exact" for item in result["results"]))
+        self.assertTrue(all(item["confidence"] in {"高", "中"} for item in result["results"]))
+        self.assertEqual([item["id"] for item in result["adjacent_references"]], ["adjacent-high"])
+        self.assertEqual([item["id"] for item in result["low_confidence_alternates"]], ["exact-low"])
+        excluded = {item["id"]: item["reason"] for item in result["excluded"]}
+        self.assertIn("unresolved", excluded)
+        self.assertIn("contradicted", excluded)
+
+    def test_relative_channel_confidence_can_qualify_eight_supported_cases(self):
+        candidates = []
+        for index in range(8):
+            score = 1.0 - index * 0.015
+            candidates.append(
+                {
+                    "id": f"case-{index}",
+                    "title": f"Case {index}",
+                    "url": f"https://example.com/case-{index}",
+                    "analysis_depth": "video-trajectory",
+                    "match_quality": "exact",
+                    "scores": {
+                        "text_fit": score,
+                        "visual_semantic_fit": score,
+                        "motion_trajectory_fit": score,
+                        "delivery_quality": score,
+                    },
+                }
+            )
+        result = rank_manifest({"query": "supported set", "candidates": candidates})
+        self.assertEqual(result["status"], "complete")
+        self.assertEqual(result["returned_result_count"], 8)
+        self.assertTrue(all(item["confidence"] == "高" for item in result["results"]))
+        self.assertFalse(result["replacement_search"]["required"])
+
+    def test_visual_ranking_reports_terminal_confidence_shortfall_without_padding(self):
+        candidates = [
+            {
+                "id": "strong",
+                "title": "Strong",
+                "url": "https://example.com/strong",
+                "analysis_depth": "keyframes",
+                "match_quality": "exact",
+                "scores": {"text_fit": 1.0, "visual_semantic_fit": 1.0, "motion_trajectory_fit": 1.0, "delivery_quality": 1.0},
+            },
+            {
+                "id": "weak",
+                "title": "Weak",
+                "url": "https://example.com/weak",
+                "analysis_depth": "keyframes",
+                "match_quality": "exact",
+                "scores": {"text_fit": 0.8, "visual_semantic_fit": 0.3, "motion_trajectory_fit": 0.3, "delivery_quality": 0.3},
+            },
+        ]
+        result = rank_manifest(
+            {"query": "budget exhausted", "candidates": candidates, "review_progress": {"live_checked": 24, "captured": 10}},
+        )
+        self.assertEqual(result["status"], "confidence-shortfall")
+        self.assertEqual([item["id"] for item in result["results"]], ["strong"])
+        self.assertEqual([item["id"] for item in result["low_confidence_alternates"]], ["weak"])
+        self.assertFalse(result["replacement_search"]["required"])
+        self.assertEqual(result["replacement_search"]["action"], "report-confidence-shortfall")
+        self.assertEqual(result["replacement_search"]["review_progress"]["effective_stop_reason"], "live-check-budget-exhausted")
+        self.assertIn("live-check-budget-exhausted", result["shortfall_reason"])
+
+    def test_vlm_confirmation_promotes_once_and_contradiction_excludes(self):
+        candidates = [
+            {
+                "id": "best",
+                "title": "Best",
+                "url": "https://example.com/best",
+                "analysis_depth": "keyframes",
+                "match_quality": "exact",
+                "scores": {"text_fit": 1.0, "visual_semantic_fit": 1.0, "motion_trajectory_fit": 1.0, "delivery_quality": 1.0},
+            },
+            {
+                "id": "vlm-confirmed",
+                "title": "VLM Confirmed",
+                "url": "https://example.com/vlm-confirmed",
+                "analysis_depth": "keyframes",
+                "match_quality": "exact",
+                "vlm_verdict": "confirmed",
+                "scores": {"text_fit": 0.75, "visual_semantic_fit": 0.5, "motion_trajectory_fit": 0.5, "delivery_quality": 0.5},
+            },
+            {
+                "id": "vlm-contradicted",
+                "title": "VLM Contradicted",
+                "url": "https://example.com/vlm-contradicted",
+                "analysis_depth": "keyframes",
+                "match_quality": "exact",
+                "vlm_verdict": "contradicted",
+                "scores": {"text_fit": 1.0, "visual_semantic_fit": 1.0, "motion_trajectory_fit": 1.0, "delivery_quality": 1.0},
+            },
+        ]
+        result = rank_manifest({"query": "vlm", "candidates": candidates}, limit=3)
+        promoted = next(item for item in result["results"] if item["id"] == "vlm-confirmed")
+        self.assertEqual(promoted["confidence"], "中")
+        self.assertEqual(promoted["confidence_basis"], "vlm-confirmed-promotion")
+        self.assertIn("vlm-contradicted", {item["id"] for item in result["excluded"]})
+
+    def test_missing_match_quality_is_unresolved_and_excluded(self):
+        result = rank_manifest(
+            {
+                "candidates": [
+                    {
+                        "id": "missing-quality",
+                        "title": "Missing Quality",
+                        "url": "https://example.com/missing-quality",
+                        "analysis_depth": "keyframes",
+                        "scores": {"text_fit": 1.0, "visual_semantic_fit": 1.0, "motion_trajectory_fit": 1.0, "delivery_quality": 1.0},
+                    }
+                ]
+            }
+        )
+        self.assertEqual(result["results"], [])
+        self.assertIn("unresolved semantic match quality", result["excluded"][0]["reason"])
 
     def test_motion_media_analyzer_extracts_real_frame_change(self):
         try:
@@ -796,6 +957,8 @@ class CatalogToolsTest(unittest.TestCase):
         self.assertEqual(search_result["results"][0]["id"], "fixture-motion")
         self.assertIn("openclip_dynamic_region", search_result["ranking_channels"])
         self.assertFalse(search_result["vlm_review"]["required"])
+        self.assertEqual(search_result["result_role"], "candidate-ordering-only")
+        self.assertTrue(search_result["final_confidence_gate_required"])
 
     def test_synthetic_preview_has_no_source_claim(self):
         output = Path(self.temp_dir.name) / "synthetic.html"
