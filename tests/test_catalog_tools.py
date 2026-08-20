@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import gzip
 import hashlib
 import json
 import os
@@ -1246,6 +1247,10 @@ class CatalogToolsTest(unittest.TestCase):
         catalog_bytes = (json.dumps(catalog, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
         catalog_path = Path(self.temp_dir.name) / "candidate.json"
         catalog_path.write_bytes(catalog_bytes)
+        examples_bytes = (SKILL_ROOT / "references" / "examples.jsonl").read_bytes()
+        compressed_examples = gzip.compress(examples_bytes, mtime=0)
+        compressed_examples_path = Path(self.temp_dir.name) / "examples.jsonl.gz"
+        compressed_examples_path.write_bytes(compressed_examples)
         manifest = {
             "catalog_version": next_version,
             "schema_version": 1,
@@ -1253,10 +1258,10 @@ class CatalogToolsTest(unittest.TestCase):
             "published_at": "2026-08-18T00:00:00Z",
             "catalog_url": "https://github.com/example/releases/download/catalog/sites.json",
             "sha256": hashlib.sha256(catalog_bytes).hexdigest(),
-            "examples_url": "https://github.com/example/releases/download/catalog/examples.jsonl",
-            "examples_sha256": hashlib.sha256(
-                (SKILL_ROOT / "references" / "examples.jsonl").read_bytes()
-            ).hexdigest(),
+            "examples_url": "https://github.com/example/releases/download/catalog/examples.jsonl.gz",
+            "examples_sha256": hashlib.sha256(compressed_examples).hexdigest(),
+            "examples_compression": "gzip",
+            "examples_content_sha256": hashlib.sha256(examples_bytes).hexdigest(),
             "summary": {"added": 1, "removed": 0, "updated": 1},
         }
         manifest_path = Path(self.temp_dir.name) / "manifest.json"
@@ -1270,6 +1275,8 @@ class CatalogToolsTest(unittest.TestCase):
         legacy_manifest = dict(manifest)
         legacy_manifest.pop("examples_url")
         legacy_manifest.pop("examples_sha256")
+        legacy_manifest.pop("examples_compression")
+        legacy_manifest.pop("examples_content_sha256")
         self.assertEqual(validate_manifest(legacy_manifest), [])
 
         env = os.environ.copy()
@@ -1282,7 +1289,7 @@ class CatalogToolsTest(unittest.TestCase):
                 "--catalog-file",
                 str(catalog_path),
                 "--examples-file",
-                str(SKILL_ROOT / "references" / "examples.jsonl"),
+                str(compressed_examples_path),
                 "--apply",
             ],
             env=env,
@@ -1295,6 +1302,7 @@ class CatalogToolsTest(unittest.TestCase):
         self.assertEqual(result["status"], "applied")
         self.assertTrue((Path(self.temp_dir.name) / "sites.json").exists())
         self.assertTrue((Path(self.temp_dir.name) / "examples.jsonl").exists())
+        self.assertEqual((Path(self.temp_dir.name) / "examples.jsonl").read_bytes(), examples_bytes)
 
 
 if __name__ == "__main__":

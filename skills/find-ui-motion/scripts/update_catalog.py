@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import gzip
 import json
 import socket
 import tempfile
@@ -48,7 +49,8 @@ def read_resource_bytes(
     url = manifest[url_field]
     if not host_allowed(url, config.get("allowed_catalog_hosts", [])):
         raise ValueError(f"{url_field} host is not allowed by update-config.json")
-    request = Request(url, headers={"Accept": "application/json", "User-Agent": "find-ui-motion/0.9.3"})
+    accept = "application/octet-stream" if url_field == "examples_url" else "application/json"
+    request = Request(url, headers={"Accept": accept, "User-Agent": "find-ui-motion/0.9.3"})
     with urlopen(request, timeout=float(config.get("timeout_seconds", 2.0)) * 3) as response:
         payload = response.read(max_bytes)
     if len(payload) >= max_bytes:
@@ -116,18 +118,33 @@ def main() -> int:
         example_payload = None
         example_count = None
         if "examples_url" in manifest:
-            example_payload = read_resource_bytes(
+            example_asset_payload = read_resource_bytes(
                 manifest=manifest,
                 config=config,
                 file_path=args.examples_file,
                 url_field="examples_url",
                 max_bytes=8 * 1024 * 1024,
             )
-            actual_examples_sha = sha256_bytes(example_payload)
+            actual_examples_sha = sha256_bytes(example_asset_payload)
             if actual_examples_sha.lower() != str(manifest["examples_sha256"]).lower():
                 raise ValueError(
                     f"examples SHA-256 mismatch: expected {manifest['examples_sha256']}, got {actual_examples_sha}"
                 )
+            if manifest.get("examples_compression") == "gzip":
+                try:
+                    example_payload = gzip.decompress(example_asset_payload)
+                except (OSError, EOFError) as exc:
+                    raise ValueError("examples gzip asset is invalid") from exc
+                if len(example_payload) >= 8 * 1024 * 1024:
+                    raise ValueError("decompressed examples resource exceeds size limit")
+                actual_content_sha = sha256_bytes(example_payload)
+                if actual_content_sha.lower() != str(manifest["examples_content_sha256"]).lower():
+                    raise ValueError(
+                        "examples content SHA-256 mismatch: "
+                        f"expected {manifest['examples_content_sha256']}, got {actual_content_sha}"
+                    )
+            else:
+                example_payload = example_asset_payload
             motions, motion_errors = load_motions()
             if motion_errors:
                 raise ValueError("motion validation failed: " + "; ".join(motion_errors))

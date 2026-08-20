@@ -85,6 +85,19 @@ def validate_manifest(manifest: Any) -> list[str]:
             errors.append(f"manifest {digest_field} must contain 64 hexadecimal characters")
         elif any(char not in "0123456789abcdefABCDEF" for char in digest):
             errors.append(f"manifest {digest_field} is not hexadecimal")
+    compression = manifest.get("examples_compression")
+    content_digest = manifest.get("examples_content_sha256")
+    if compression is not None:
+        if compression != "gzip":
+            errors.append("manifest examples_compression must be gzip")
+        if "examples_url" not in manifest:
+            errors.append("manifest examples_compression requires examples_url")
+        if not isinstance(content_digest, str) or len(content_digest) != 64:
+            errors.append("manifest examples_content_sha256 must contain 64 hexadecimal characters")
+        elif any(char not in "0123456789abcdefABCDEF" for char in content_digest):
+            errors.append("manifest examples_content_sha256 is not hexadecimal")
+    elif content_digest is not None:
+        errors.append("manifest examples_content_sha256 requires examples_compression")
     if not isinstance(manifest["summary"], dict):
         errors.append("manifest summary must be an object")
     return errors

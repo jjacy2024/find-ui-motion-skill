@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import gzip
 import json
 import sys
 from datetime import datetime, timezone
@@ -30,6 +31,8 @@ def main() -> int:
     parser.add_argument("--catalog", type=Path, default=SKILL_ROOT / "references" / "sites.json")
     parser.add_argument("--catalog-url", required=True)
     parser.add_argument("--examples", type=Path)
+    parser.add_argument("--examples-asset", type=Path)
+    parser.add_argument("--examples-compression", choices=("gzip",))
     parser.add_argument("--examples-url")
     parser.add_argument("--min-skill-version", default="0.1.0")
     parser.add_argument("--output-manifest", type=Path, required=True)
@@ -59,6 +62,10 @@ def main() -> int:
     example_count = None
     if (args.examples is None) != (args.examples_url is None):
         raise SystemExit("--examples and --examples-url must be provided together")
+    if args.examples_asset is not None and args.examples is None:
+        raise SystemExit("--examples-asset requires --examples")
+    if (args.examples_asset is None) != (args.examples_compression is None):
+        raise SystemExit("--examples-asset and --examples-compression must be provided together")
     if args.examples is not None:
         example_url = urlparse(args.examples_url)
         if example_url.scheme != "https" or not example_url.hostname:
@@ -74,8 +81,21 @@ def main() -> int:
             print(json.dumps({"status": "fail", "errors": all_example_errors}, ensure_ascii=False, indent=2))
             return 2
         examples_payload = args.examples.read_bytes()
+        examples_asset_payload = examples_payload
+        if args.examples_asset is not None:
+            examples_asset_payload = args.examples_asset.read_bytes()
+            if args.examples_compression == "gzip":
+                try:
+                    decompressed = gzip.decompress(examples_asset_payload)
+                except (OSError, EOFError) as exc:
+                    raise SystemExit("--examples-asset is not valid gzip") from exc
+                if decompressed != examples_payload:
+                    raise SystemExit("--examples-asset does not decompress to --examples")
         manifest["examples_url"] = args.examples_url
-        manifest["examples_sha256"] = sha256_bytes(examples_payload)
+        manifest["examples_sha256"] = sha256_bytes(examples_asset_payload)
+        if args.examples_compression is not None:
+            manifest["examples_compression"] = args.examples_compression
+            manifest["examples_content_sha256"] = sha256_bytes(examples_payload)
         example_count = len(examples)
     atomic_write_bytes(args.output_manifest, dump_json_bytes(manifest))
     print(
