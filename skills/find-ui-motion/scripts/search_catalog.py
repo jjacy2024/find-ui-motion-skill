@@ -26,8 +26,8 @@ def parser() -> argparse.ArgumentParser:
         default="auto",
         help="auto runs taxonomy, full-index lexical, then local query expansion only as needed",
     )
-    result.add_argument("--target-count", type=int, default=8, help="Desired exact local candidates, default 8 and maximum 10")
-    result.add_argument("--trace", action="store_true", help="Show local escalation, coverage, and external-search recommendation")
+    result.add_argument("--target-count", type=int, default=8, help="Desired quick-pass candidates, default 8 and maximum 10")
+    result.add_argument("--trace", action="store_true", help="Show local escalation, strict coverage, quick coverage, and external-search decision")
     result.add_argument(
         "--candidate-pool-only",
         action="store_true",
@@ -43,6 +43,9 @@ def render_text(data: dict, *, show_trace: bool = False) -> str:
         f"catalog: {data['catalog_version']} ({data['catalog_source']})",
         f"retrieval: {data['retrieval_level']} | coverage={data['coverage']['status']} "
         + f"exact={data['coverage']['exact_count']}/{data['coverage']['target_count']}",
+        f"quick: {data['quick_coverage']['status']} | "
+        + f"strong={data['quick_coverage']['strong_count']} usable={data['quick_coverage']['usable_count']} "
+        + f"eligible={data['quick_coverage']['eligible_count']}/{data['quick_coverage']['target_count']}",
         "",
     ]
     if show_trace:
@@ -59,7 +62,7 @@ def render_text(data: dict, *, show_trace: bool = False) -> str:
         external = data["external_search"]
         lines.append(
             "   - external: "
-            + ("recommended" if external["recommended"] else "not recommended")
+            + external["decision"]
             + f" | {external['reason']}"
         )
         lines.append("")
@@ -149,6 +152,7 @@ def main() -> int:
                 "query_variants": data["query_variants"],
                 "query_expansion_groups": data["query_expansion_groups"],
                 "coverage": data["coverage"],
+                "quick_coverage": data["quick_coverage"],
                 "retrieval_trace": data["retrieval_trace"],
                 "external_search": data["external_search"],
                 "candidate_pool": data["candidate_pool"],

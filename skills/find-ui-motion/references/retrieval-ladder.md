@@ -32,21 +32,35 @@ Use `--candidate-limit 64` only for broad, ambiguous, or visually exacting reque
 
 Never infer that the global stage ran from the candidate count. Require a completed `global` trace record and report its real `examples_scanned` value when retrieval provenance matters.
 
-## Interpret coverage
+## Interpret quick and strict coverage
 
-Use the script's deterministic candidate labels as a retrieval gate, then apply design judgment and source-health checks:
+Use two independent labels, then apply design judgment and source-health checks.
+
+`quick_fit` controls quick discovery:
+
+- `strong`: matches every explicitly represented core target, behavior, and trigger group; preference keywords are not required.
+- `usable`: matches at least half of those core groups, or is a useful preference-led result when no core group is present.
+- `weak`: misses the core behavior or target and cannot fill the quick-result quota.
+
+Style, feeling, intensity, and visual-tone groups are preferences. They improve `quick_score` and ordering but their absence never turns an otherwise useful quick candidate into an external-search requirement. Platform groups describe compatibility; a mismatch demotes a quick candidate to `reference-only` instead of silently treating Web code as native implementation.
+
+`coverage` remains the strict deep-match retrieval label:
 
 - `exact`: the candidate covers every requested mechanism, scene, and style group represented by the local expansion map.
 - `adjacent`: the candidate covers only part of that request or has partial direct lexical overlap.
 - `gap`: no meaningful local lexical or expanded match remains.
 
-Treat platform as a compatibility filter, not a visual exactness requirement. Do not relabel an `adjacent` item as exact merely because it looks promising. Do not pad an eight-item result target with adjacent cases; show them separately as `本地相邻参考` when useful.
+Treat platform as a compatibility filter, not a visual exactness requirement. Do not relabel an `adjacent` item as exact merely because it looks promising. Formal deep results still cannot be padded with adjacent cases. When strict provenance labels are useful, keep `本地准确匹配` and `本地相邻参考` separate. The quick pass may use `quick_fit=strong | usable` regardless of strict `coverage`, but it must exclude `quick_fit=weak`.
 
-The script reports both `coverage.status` and `coverage.complete`. `status=exact` means at least one exact local case exists; `complete=true` means the exact local pool reached the requested result target. Current catalog metadata is still only retrieval evidence. Apply [source-health.md](source-health.md) before showing an item as eligible.
+The script reports strict `coverage` and separate `quick_coverage`. `quick_coverage.complete=true` means the local delivery-ready pool reached the requested quick-result count with at least three sources by default. `coverage.complete=true` still means the exact local pool reached the formal target. Current catalog metadata is still only retrieval evidence. Apply [source-health.md](source-health.md) before showing an item as eligible.
 
 ## Escalate to the public Web
 
-Consider external search only when all three local stages have completed and `external_search.recommended=true`.
+Consider external search only after the local stages recorded by the trace have completed. Follow the deterministic `external_search.decision` three-state decision:
+
+- `skip`: the local quick pool is sufficient; do not search externally.
+- `offer`: show local results first, then ask whether the user wants one focused external supplement. Do not run it before confirmation.
+- `required`: fewer than four delivery-ready strong/usable candidates remain or the core behavior is absent; announce the gap and run one focused external query. `external_search.recommended=true` is reserved for this state.
 
 Before opening a search engine or an external result, tell the user:
 
@@ -86,10 +100,11 @@ coverage:
   adjacent_count: integer
 retrieval_trace: []
 external_search:
+  decision: skip | offer | required
   recommended: boolean
   reason: string
   query: string
   provenance_label: 外网补充
 ```
 
-When explaining a shortfall, report the actual completed stage, exact count, adjacent count, and external supplement count separately.
+When explaining a shortfall, report quick strong/usable counts separately from strict exact/adjacent counts and external supplements.

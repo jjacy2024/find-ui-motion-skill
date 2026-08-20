@@ -534,7 +534,7 @@ class CatalogToolsTest(unittest.TestCase):
         default_result = search_catalog("interactions loading transition", limit=10, examples_per_motion=20)
         self.assertLessEqual(len(default_result["candidate_pool"]), 48)
 
-    def test_auto_retrieval_scans_full_catalog_before_external_recommendation(self):
+    def test_auto_retrieval_keeps_style_gap_optional_after_local_quick_results(self):
         groups = load_query_expansions()
         group_ids = {group["id"] for group in groups}
         self.assertTrue(
@@ -553,14 +553,36 @@ class CatalogToolsTest(unittest.TestCase):
         self.assertEqual(result["retrieval_level"], "global-expanded")
         self.assertEqual(result["candidate_pool"][0]["id"], "react-bits-pixel-transition")
         self.assertEqual(result["candidate_pool"][0]["coverage"], "adjacent")
+        self.assertEqual(result["candidate_pool"][0]["quick_fit"], "strong")
         self.assertIn("style-cyberpunk", result["candidate_pool"][0]["missing_query_groups"])
-        self.assertTrue(result["external_search"]["recommended"])
+        self.assertTrue(result["quick_coverage"]["complete"])
+        self.assertEqual(result["external_search"]["decision"], "offer")
+        self.assertFalse(result["external_search"]["recommended"])
         self.assertEqual(result["external_search"]["max_initial_queries"], 1)
         self.assertEqual(result["external_search"]["provenance_label"], "外网补充")
+
+    def test_quick_gradient_background_pool_does_not_require_all_style_keywords(self):
+        result = search_catalog(
+            "web 动态渐变流光背景 绚丽有机 多色液态融合",
+            strategy="auto",
+            candidate_limit=48,
+        )
+        self.assertEqual(result["coverage"]["exact_count"], 0)
+        self.assertTrue(result["quick_coverage"]["complete"])
+        self.assertGreaterEqual(result["quick_coverage"]["strong_count"], 3)
+        self.assertGreaterEqual(result["quick_coverage"]["source_count"], 3)
+        self.assertEqual(result["external_search"]["decision"], "skip")
+        self.assertFalse(result["external_search"]["recommended"])
+        self.assertIn("react-bits-liquid-chrome", {item["id"] for item in result["candidate_pool"][:8]})
+        self.assertTrue(
+            all("scene-background" in item["quick_core_matches"] for item in result["candidate_pool"][:8])
+        )
 
     def test_crt_gap_emits_focused_external_query_only_after_local_ladder(self):
         result = search_catalog("CRT 电视关机扫描线页面转场", strategy="auto", candidate_limit=64)
         self.assertFalse(result["coverage"]["complete"])
+        self.assertEqual(result["quick_coverage"]["eligible_count"], 0)
+        self.assertEqual(result["external_search"]["decision"], "required")
         self.assertTrue(result["external_search"]["recommended"])
         self.assertIn("crt", result["external_search"]["query"].lower())
         self.assertIn("scanline", result["external_search"]["query"].lower())
@@ -593,6 +615,7 @@ class CatalogToolsTest(unittest.TestCase):
         self.assertNotIn("matches", payload)
         self.assertEqual(payload["strategy"], "auto")
         self.assertIn("retrieval_trace", payload)
+        self.assertIn("quick_coverage", payload)
         self.assertIn("external_search", payload)
         self.assertGreaterEqual(len(payload["candidate_pool"]), 48)
         self.assertLessEqual(len(payload["candidate_pool"]), 64)
@@ -670,6 +693,7 @@ class CatalogToolsTest(unittest.TestCase):
             "taxonomy",
             "global",
             "global-expanded",
+            "external_search.decision",
             "external_search.recommended=true",
             "one focused initial query",
             "外网补充",

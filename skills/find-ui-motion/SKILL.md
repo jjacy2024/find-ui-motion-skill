@@ -53,7 +53,9 @@ Treat search scores as retrieval hints, not final design judgment. Inspect the b
 
 Before returning candidates, classify them internally as `code-backed | runtime-backed | video-only`. Unless video search is authorized, remove `video-only`, then rank the remaining semantically relevant cases by target-platform implementation readiness before source spectacle or visual polish.
 
-Let `auto` decide whether to escalate from taxonomy recall to a text scan of every eligible local example and then bundled bilingual query expansion. Never open Google or another search engine before the script completes the local ladder and returns `external_search.recommended=true`. Announce the local coverage gap before one focused external query. Label every such item `外网补充`, keep it separate from `本地准确匹配` and `本地相邻参考`, and apply the same direct-item, deduplication, and source-health gates.
+Let `auto` decide whether to escalate from taxonomy recall to a text scan of every eligible local example and then bundled bilingual query expansion. Quick discovery uses `quick_fit=strong | usable | weak`: core target, behavior, and trigger terms determine eligibility, while style, feeling, and intensity terms rank candidates without becoming all-keyword requirements. Keep the stricter `coverage=exact | adjacent | gap` for deep formal matching.
+
+Never open Google or another search engine before the script completes the local ladder. Follow `external_search.decision`: `skip` means use the sufficient local pool, `offer` means show local results first and ask whether the user wants a focused supplement, and `required` means announce the local core-coverage gap and run one focused external query. `external_search.recommended=true` is retained only for `required`. Label every external item `外网补充`, keep it separate from local results, and apply the same direct-item, deduplication, and source-health gates.
 
 ## Offer high-quality new sources for review
 

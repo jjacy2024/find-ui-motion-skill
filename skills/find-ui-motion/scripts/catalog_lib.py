@@ -532,10 +532,16 @@ def load_query_expansions(path: Path = QUERY_EXPANSIONS_FILE) -> list[dict[str, 
             raise ValueError(f"duplicate query expansion id: {group_id}")
         if facet not in {"mechanism", "scene", "style", "platform"}:
             raise ValueError(f"{prefix}.facet is unsupported: {facet!r}")
+        role = group.get(
+            "role",
+            "preference" if facet == "style" else "compatibility" if facet == "platform" else "core",
+        )
+        if role not in {"core", "preference", "compatibility"}:
+            raise ValueError(f"{prefix}.role is unsupported: {role!r}")
         if not isinstance(terms, list) or len(terms) < 2 or not all(isinstance(term, str) and term.strip() for term in terms):
             raise ValueError(f"{prefix}.terms must contain at least two non-empty strings")
         seen.add(group_id)
-        normalized.append({"id": group_id, "facet": facet, "terms": terms})
+        normalized.append({"id": group_id, "facet": facet, "role": role, "terms": terms})
     return normalized
 
 
@@ -755,6 +761,112 @@ def _facet_document_values(
     return values
 
 
+def _quick_facet_document_values(
+    example: dict[str, Any],
+    motion_by_id: dict[str, dict[str, Any]],
+) -> dict[str, list[str]]:
+    """Build candidate-specific values for quick-pass relevance.
+
+    Scene values intentionally avoid taxonomy-level targets. A broad motion tag such
+    as ambient-gradient must not make a gradient text or border example count as a
+    background merely because the motion taxonomy can also target backgrounds.
+    """
+
+    title = str(example.get("title", ""))
+    url = str(example.get("url", ""))
+    example_terms = [str(value) for value in example.get("search_terms", []) if isinstance(value, str)]
+    trigger = example.get("trigger", {})
+    trigger_kind = str(trigger.get("kind", "")) if isinstance(trigger, dict) else ""
+    target_hint = str(trigger.get("target_hint", "")) if isinstance(trigger, dict) else ""
+    values = {
+        "mechanism": [title, url, *example_terms, trigger_kind, target_hint],
+        "scene": [title, url, trigger_kind, target_hint],
+        "style": [title, url, *example_terms],
+        "platform": [str(value) for value in example.get("stacks", []) if isinstance(value, str)],
+    }
+    for motion_id in example.get("motion_ids", []):
+        motion = motion_by_id.get(str(motion_id))
+        if not motion:
+            continue
+        values["mechanism"].extend(
+            [motion["id"], motion["category"], *motion["labels"], *motion["aliases"], *motion["channels"], *motion["search_terms"]]
+        )
+        values["style"].extend([*motion["labels"], *motion["aliases"], *motion["feel"]])
+    return values
+
+
+QUICK_FIT_RANK = {"weak": 0, "usable": 1, "strong": 2}
+QUICK_DELIVERY_CAPABILITIES = {"snippet", "package", "asset", "recreate"}
+
+
+def _quick_candidate_fit(
+    example: dict[str, Any],
+    *,
+    direct_coverage: str,
+    motion_by_id: dict[str, dict[str, Any]],
+    requested_groups: list[dict[str, Any]],
+) -> dict[str, Any]:
+    values = _quick_facet_document_values(example, motion_by_id)
+    matched = [
+        group["id"]
+        for group in requested_groups
+        if any(
+            _contains_term(value, term)
+            for value in values[group["facet"]]
+            for term in group["terms"]
+        )
+    ]
+    matched_set = set(matched)
+    group_by_id = {group["id"]: group for group in requested_groups}
+    core_groups = [group["id"] for group in requested_groups if group["role"] == "core"]
+    preference_groups = [group["id"] for group in requested_groups if group["role"] == "preference"]
+    compatibility_groups = [group["id"] for group in requested_groups if group["role"] == "compatibility"]
+    matched_core = [group_id for group_id in core_groups if group_id in matched_set]
+    matched_preferences = [group_id for group_id in preference_groups if group_id in matched_set]
+    matched_compatibility = [group_id for group_id in compatibility_groups if group_id in matched_set]
+    missing_core = [group_id for group_id in core_groups if group_id not in matched_set]
+    core_ratio = len(matched_core) / len(core_groups) if core_groups else None
+    preference_ratio = len(matched_preferences) / len(preference_groups) if preference_groups else 0.0
+    compatibility_ratio = (
+        len(matched_compatibility) / len(compatibility_groups) if compatibility_groups else 1.0
+    )
+    requested_core_facets = {group_by_id[group_id]["facet"] for group_id in core_groups}
+    matched_core_facets = {group_by_id[group_id]["facet"] for group_id in matched_core}
+    missing_core_facet = bool(requested_core_facets - matched_core_facets)
+    direct_score = {"gap": 0.0, "adjacent": 0.6, "exact": 1.0}[direct_coverage]
+    if core_ratio is None:
+        quick_score = 0.65 * direct_score + 0.25 * preference_ratio + 0.10 * compatibility_ratio
+        if direct_coverage == "exact" or preference_ratio >= 0.5:
+            quick_fit = "strong"
+        elif direct_coverage == "adjacent" or matched_preferences:
+            quick_fit = "usable"
+        else:
+            quick_fit = "weak"
+    else:
+        quick_score = 0.75 * core_ratio + 0.15 * preference_ratio + 0.10 * compatibility_ratio
+        if missing_core_facet:
+            quick_fit = "weak"
+        elif core_ratio >= 1.0:
+            quick_fit = "strong"
+        elif core_ratio >= 0.5:
+            quick_fit = "usable"
+        else:
+            quick_fit = "weak"
+    compatibility = "compatible" if not compatibility_groups or matched_compatibility else "reference-only"
+    if compatibility == "reference-only" and quick_fit == "strong":
+        quick_fit = "usable"
+    return {
+        "quick_fit": quick_fit,
+        "quick_score": round(quick_score, 3),
+        "quick_matched_groups": matched,
+        "quick_core_matches": matched_core,
+        "quick_missing_core_groups": missing_core,
+        "quick_preference_matches": matched_preferences,
+        "quick_compatibility_matches": matched_compatibility,
+        "quick_compatibility": compatibility,
+    }
+
+
 def _example_matches_filters(
     example: dict[str, Any],
     site_by_id: dict[str, dict[str, Any]],
@@ -792,6 +904,12 @@ def _enrich_candidate(
     values = _example_document_values(example, motion_by_id)
     direct_score, matched_units = _document_lexical_score(query, values)
     direct = _direct_coverage(query, direct_score, matched_units)
+    quick_fit = _quick_candidate_fit(
+        example,
+        direct_coverage=direct,
+        motion_by_id=motion_by_id,
+        requested_groups=requested_groups,
+    )
     matched_groups: list[str] = []
     missing_groups: list[str] = []
     matched_facets: list[str] = []
@@ -821,6 +939,7 @@ def _enrich_candidate(
         "missing_query_groups": missing_groups,
         "matched_facets": matched_facets,
         "retrieval_stages": list(dict.fromkeys([*example.get("retrieval_stages", []), retrieval_stage])),
+        **quick_fit,
     }
 
 
@@ -829,6 +948,8 @@ def _sort_candidates(candidates: list[dict[str, Any]], limit: int) -> list[dict[
         candidates,
         key=lambda example: (
             -COVERAGE_RANK[example["coverage"]],
+            -QUICK_FIT_RANK[example.get("quick_fit", "weak")],
+            -float(example.get("quick_score", 0.0)),
             -len(example.get("matched_mechanism_groups", [])),
             -len(example.get("matched_query_groups", [])),
             example["last_verified"] is None,
@@ -890,6 +1011,8 @@ def _merge_candidate_pools(pools: list[list[dict[str, Any]]], limit: int) -> lis
             stages = list(dict.fromkeys([*current["retrieval_stages"], *candidate["retrieval_stages"]]))
             candidate_key = (
                 COVERAGE_RANK[candidate["coverage"]],
+                QUICK_FIT_RANK[candidate.get("quick_fit", "weak")],
+                float(candidate.get("quick_score", 0.0)),
                 max(STAGE_RANK[stage] for stage in candidate["retrieval_stages"]),
                 len(candidate.get("matched_mechanism_groups", [])),
                 len(candidate.get("matched_query_groups", [])),
@@ -897,6 +1020,8 @@ def _merge_candidate_pools(pools: list[list[dict[str, Any]]], limit: int) -> lis
             )
             current_key = (
                 COVERAGE_RANK[current["coverage"]],
+                QUICK_FIT_RANK[current.get("quick_fit", "weak")],
+                float(current.get("quick_score", 0.0)),
                 max(STAGE_RANK[stage] for stage in current["retrieval_stages"]),
                 len(current.get("matched_mechanism_groups", [])),
                 len(current.get("matched_query_groups", [])),
@@ -921,6 +1046,37 @@ def _coverage_summary(candidates: list[dict[str, Any]], target_count: int) -> di
         "target_count": target_count,
         "exact_count": exact_count,
         "adjacent_count": adjacent_count,
+    }
+
+
+def _quick_coverage_summary(
+    candidates: list[dict[str, Any]],
+    target_count: int,
+    site_by_id: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    delivery_ready = [
+        candidate
+        for candidate in candidates
+        if QUICK_DELIVERY_CAPABILITIES.intersection(site_by_id[candidate["site_id"]]["capabilities"])
+    ]
+    strong = [candidate for candidate in delivery_ready if candidate.get("quick_fit") == "strong"]
+    usable = [candidate for candidate in delivery_ready if candidate.get("quick_fit") == "usable"]
+    weak = [candidate for candidate in delivery_ready if candidate.get("quick_fit") == "weak"]
+    eligible = [*strong, *usable]
+    source_count = len({candidate["site_id"] for candidate in eligible})
+    minimum_sources = min(3, target_count)
+    complete = len(eligible) >= target_count and source_count >= minimum_sources
+    return {
+        "status": "strong" if len(strong) >= min(3, target_count) and complete else "usable" if eligible else "gap",
+        "complete": complete,
+        "target_count": target_count,
+        "strong_count": len(strong),
+        "usable_count": len(usable),
+        "weak_count": len(weak),
+        "eligible_count": len(eligible),
+        "delivery_ready_count": len(delivery_ready),
+        "source_count": source_count,
+        "minimum_source_count": minimum_sources,
     }
 
 
@@ -1208,9 +1364,10 @@ def search_catalog(
         candidate_pool = _merge_candidate_pools(candidate_pools, candidate_limit)
         current_coverage = _coverage_summary(candidate_pool, target_count)
 
+    quick_coverage = _quick_coverage_summary(candidate_pool, target_count, site_by_id)
     best_candidate = candidate_pool[0] if candidate_pool else None
-    missing_group_ids = best_candidate.get("missing_query_groups", []) if best_candidate else [
-        group["id"] for group in requested_groups if group["facet"] != "platform"
+    missing_group_ids = best_candidate.get("quick_missing_core_groups", []) if best_candidate else [
+        group["id"] for group in requested_groups if group["role"] == "core"
     ]
     group_by_id = {group["id"]: group for group in requested_groups}
     missing_terms = [
@@ -1220,17 +1377,33 @@ def search_catalog(
     ]
     external_query = query + (" | " + " ".join(missing_terms) if missing_terms else "")
     local_ladder_exhausted = expanded_completed
-    external_recommended = local_ladder_exhausted and not current_coverage["complete"]
-    if current_coverage["complete"]:
-        external_reason = "the local catalog satisfied the requested exact-result target"
-    elif not local_ladder_exhausted:
+    minimum_strong = min(3, target_count)
+    if not local_ladder_exhausted:
+        external_decision = "skip"
+    elif quick_coverage["complete"] and quick_coverage["strong_count"] >= minimum_strong:
+        external_decision = "skip"
+    elif quick_coverage["eligible_count"] >= 4:
+        external_decision = "offer"
+    else:
+        external_decision = "required"
+    external_recommended = external_decision == "required"
+    if not local_ladder_exhausted:
         external_reason = "local retrieval ladder not exhausted"
-    elif current_coverage["exact_count"] == 0:
-        external_reason = "no exact local candidate satisfies every requested mechanism, scene, and style facet"
+    elif external_decision == "skip":
+        external_reason = (
+            f"the local catalog supplied {quick_coverage['eligible_count']} quick-pass candidates across "
+            f"{quick_coverage['source_count']} sources"
+        )
+    elif external_decision == "offer":
+        external_reason = (
+            f"the local catalog supplied {quick_coverage['eligible_count']} usable quick-pass candidates, "
+            "but the pool is incomplete or has fewer than three strong matches; show local results first "
+            "and offer an optional focused supplement"
+        )
     else:
         external_reason = (
-            f"only {current_coverage['exact_count']} exact local candidates remain for a target of "
-            f"{target_count}"
+            f"only {quick_coverage['eligible_count']} usable quick-pass candidates remain for a target of "
+            f"{target_count}; a focused external supplement is required"
         )
 
     return {
@@ -1241,7 +1414,7 @@ def search_catalog(
         "examples_total": len(examples),
         "query_variants": query_variants,
         "query_expansion_groups": [
-            {"id": group["id"], "facet": group["facet"]} for group in requested_groups
+            {"id": group["id"], "facet": group["facet"], "role": group["role"]} for group in requested_groups
         ],
         "catalog_version": catalog["catalog_version"],
         "catalog_source": source,
@@ -1250,8 +1423,10 @@ def search_catalog(
         "matches": matches,
         "candidate_pool": candidate_pool,
         "coverage": current_coverage,
+        "quick_coverage": quick_coverage,
         "retrieval_trace": trace,
         "external_search": {
+            "decision": external_decision,
             "recommended": external_recommended,
             "reason": external_reason,
             "query": external_query,
