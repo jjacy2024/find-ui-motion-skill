@@ -24,4 +24,4 @@ python3 scripts/catalog_overview.py --list-sites --format markdown
 
 Return every listed website as a clickable Markdown link to its public `homepage`. Preserve the Catalog order, and label a non-active status when present. Do not truncate a complete list, substitute category pages, or turn homepage links into case recommendations.
 
-The website list is Catalog navigation, not a case result. It does not count toward the default eight concrete-case links. Showing the list does not authorize opening, browsing, verifying, downloading from, or submitting data to any website. Let the user manually click a link unless they separately ask the agent to visit it.
+The website list is Catalog navigation, not a case result. It does not count toward the default fifteen fuzzy quick links or the separate eight formal deep-match results. Showing the list does not authorize opening, browsing, verifying, downloading from, or submitting data to any website. Let the user manually click a link unless they separately ask the agent to visit it.

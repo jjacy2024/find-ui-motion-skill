@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "catalog_version": "2026.08.9",
-  "generated_at": "2026-08-20T08:02:33Z",
+  "catalog_version": "2026.08.10",
+  "generated_at": "2026-08-22T17:15:27Z",
   "sites": [
     {
       "id": "motion",
@@ -619,6 +619,36 @@
       "last_shallow_check": "2026-08-20",
       "last_deep_review": "2026-08-20",
       "access_notes": "The current official page lists 44 named HTML, CSS and SVG loaders, and the exact source files are public under MIT. Because the site has no per-loader permalink, records use exact source links plus the collection locator and remain visually unverified until the selected named loader is opened."
+    },
+    {
+      "id": "threeui",
+      "name": "ThreeUI",
+      "status": "active",
+      "auth": "optional",
+      "kind": "component-library",
+      "homepage": "https://threeui.com/",
+      "routes": {
+        "examples": "https://threeui.com/browse",
+        "source": "https://github.com/MengTo/threeui",
+        "package": "https://www.npmjs.com/package/@designcodeio/threeui",
+        "categories": {
+          "ambient": "https://threeui.com/browse",
+          "feedback": "https://threeui.com/browse",
+          "text": "https://threeui.com/browse",
+          "three-d": "https://threeui.com/browse"
+        }
+      },
+      "capabilities": ["snippet", "package", "recreate", "inspiration"],
+      "stacks": ["react", "typescript", "javascript", "css", "webgl"],
+      "tags": ["component", "three-d", "shader", "webgl", "canvas", "particle", "background", "button", "text"],
+      "license": {
+        "status": "explicit",
+        "url": "https://github.com/MengTo/threeui/blob/main/LICENSE"
+      },
+      "added_at": "2026-08-23",
+      "last_shallow_check": "2026-08-23",
+      "last_deep_review": "2026-08-23",
+      "access_notes": "The public browse page, 15 exact Community routes, official preview media, public source repository, and npm package path were reviewed on 2026-08-23. Community application and component code is MIT; bundled fonts and third-party assets retain their own notices. Pro implementation source requires a paid entitlement and is intentionally excluded from the bundled examples."
     }
   ]
 }

@@ -8,7 +8,7 @@ After formal ranking, route any external candidate with `match_quality=exact`, `
 
 ## Start and stop contract
 
-Enter this workflow only after delivering the user-visible quick pass, unless the current user request explicitly contains `直接深度匹配`. No other wording, inferred preference, screenshot specificity, early best candidate, or internal shortlist authorizes bypassing the quick pass.
+Enter this workflow immediately after delivering the user-visible quick pass, unless the user said `只要快速结果`. Do not wait for the user to finish reviewing or reply first. The current request's explicit phrase `直接深度匹配` still permits skipping the visible quick delivery; no other wording, inferred preference, screenshot specificity, early best candidate, or internal shortlist authorizes that skip.
 
 Before opening candidates, send one concise progress update that states:
 
@@ -17,9 +17,30 @@ Before opening candidates, send one concise progress update that states:
 - that the user can reply `停止深度匹配` at any time;
 - that Goal mode users can also pause from the goal progress row.
 
-Continue in the same task after the quick links. Do not send a final answer and promise to return later. A soft-singular request such as `帮我找一个` still keeps the default multi-case comparison: place the strongest formal result first or label it `最推荐`, but do not suppress the other qualifying results.
+Continue in the same running task after the quick links. Deliver the quick list as a progress message; do not send a final answer and promise to return later or imply that a hidden daemon will keep working. A soft-singular request such as `帮我找一个` still keeps the default multi-case comparison: place the strongest formal result first or label it `最推荐`, but do not suppress the other qualifying results.
 
 When the user stops, do not start another page, capture, or analysis job. Let only an already-running safe tool call settle, then return the completed partial results and list the unchecked count. A paused Goal must not launch further work until resumed.
+
+## Speculative deepening and feedback reprioritization
+
+Treat user feedback as the convergence signal, not the start signal. Maintain a versioned internal brief and an interruptible priority queue:
+
+- `P0`: cases the user just named, selected, liked, or asked to verify, followed by their closest mechanism neighbors;
+- `P1`: candidates matching the user's newly stated positive features or constraints;
+- `P2`: strong candidates from the current brief that have not yet been checked;
+- `P3`: related and exploratory candidates retained for discovery.
+
+Before feedback, start with a diverse batch of roughly three to five items: usually two or three strong cases, one mechanism-related case, and one exploratory case when available. Run cheap metadata recall, deduplication, cached index lookup, and queue scoring across the fixed pool, but launch expensive page checks, interaction captures, trajectory analysis, and VLM work only in batches of roughly three to five. Report progress between batches and continue without deliberately waiting when no feedback arrives.
+
+When feedback arrives, stop launching new work from the old ordering at the next candidate boundary. Let only an already-running safe page or capture action settle, increment the brief version, and rebuild the pending order before continuing. Reuse current health evidence and captures when their URL, trigger, viewport, and meaning still fit; always rescore them against the revised brief. A result labeled `exact` under an older brief does not inherit that label under a revised brief.
+
+Interpret feedback by its actual effect:
+
+- a selected case moves to `P0`, followed by visually or mechanically similar unseen cases;
+- a liked feature reweights the whole pending pool;
+- a disliked feature suppresses that family without removing unrelated alternatives;
+- a new platform or implementation constraint refilters compatibility while preserving useful `reference-only` visual leads;
+- a materially different target, trigger, or direction ends the current pool version and creates a new fixed pool. Retain completed evidence only when it remains relevant.
 
 ## Candidate pool and stopping conditions
 
@@ -28,7 +49,7 @@ Build and fix the cross-source catalog pool before opening any candidate page. D
 At deep-match entry, request the deduplicated pool directly. Use `--candidate-limit 48` normally; change only that value to `64` for the maximum-recall cases above:
 
 ```bash
-python3 scripts/search_catalog.py "<user request>" --strategy auto --target-count 8 --limit 10 --examples-per-motion 20 --candidate-limit 64 --candidate-pool-only --json
+python3 scripts/search_catalog.py "<user request>" --mode deep --quick-count 15 --formal-target 8 --strategy auto --limit 10 --examples-per-motion 20 --candidate-limit 64 --candidate-pool-only --json
 ```
 
 Use `candidate_pool`, not a concatenation of per-motion examples. It is already deduplicated and source-diversified for the first-pass shortlist. Keep `--candidate-pool-only` for deep retrieval so the 64-case pool is not duplicated inside the per-motion JSON payload. Preserve `coverage`, `retrieval_trace`, and external provenance from [retrieval-ladder.md](retrieval-ladder.md); never use adjacent or externally supplemented items as unlabeled exact matches.
@@ -42,7 +63,7 @@ Read [source-health.md](source-health.md) and require current content health bef
 - 16 healthy candidates have been captured and analyzed;
 - the filtered concrete-item pool is exhausted;
 - three consecutive candidates cannot be accessed or triggered;
-- the user stops or changes the request.
+- the user stops, or materially changes the request and therefore closes the current brief version.
 
 Do not fill a quota with duplicates, category routes, adjacent matches, or low-confidence candidates. When fewer than eight formal results qualify, keep reviewing later candidates from the fixed pool until a documented stopping condition reaches the 24 live-check or 16 capture boundary. Do not stop merely because the first eight captured candidates have been ranked.
 

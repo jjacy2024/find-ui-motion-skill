@@ -795,6 +795,7 @@ def _quick_facet_document_values(
     return values
 
 
+QUICK_TIER_RANK = {"off-target": 0, "exploratory": 1, "related": 2, "strong": 3}
 QUICK_FIT_RANK = {"weak": 0, "usable": 1, "strong": 2}
 QUICK_DELIVERY_CAPABILITIES = {"snippet", "package", "asset", "recreate"}
 
@@ -830,32 +831,36 @@ def _quick_candidate_fit(
     compatibility_ratio = (
         len(matched_compatibility) / len(compatibility_groups) if compatibility_groups else 1.0
     )
-    requested_core_facets = {group_by_id[group_id]["facet"] for group_id in core_groups}
-    matched_core_facets = {group_by_id[group_id]["facet"] for group_id in matched_core}
-    missing_core_facet = bool(requested_core_facets - matched_core_facets)
     direct_score = {"gap": 0.0, "adjacent": 0.6, "exact": 1.0}[direct_coverage]
     if core_ratio is None:
         quick_score = 0.65 * direct_score + 0.25 * preference_ratio + 0.10 * compatibility_ratio
         if direct_coverage == "exact" or preference_ratio >= 0.5:
-            quick_fit = "strong"
+            quick_tier = "strong"
+        elif direct_coverage == "adjacent" and matched_preferences:
+            quick_tier = "related"
         elif direct_coverage == "adjacent" or matched_preferences:
-            quick_fit = "usable"
+            quick_tier = "exploratory"
         else:
-            quick_fit = "weak"
+            quick_tier = "off-target"
     else:
-        quick_score = 0.75 * core_ratio + 0.15 * preference_ratio + 0.10 * compatibility_ratio
-        if missing_core_facet:
-            quick_fit = "weak"
-        elif core_ratio >= 1.0:
-            quick_fit = "strong"
-        elif core_ratio >= 0.5:
-            quick_fit = "usable"
+        quick_score = 0.60 * core_ratio + 0.15 * direct_score + 0.15 * preference_ratio + 0.10 * compatibility_ratio
+        if core_ratio >= 1.0:
+            quick_tier = "strong"
+        elif matched_core:
+            quick_tier = "related"
+        elif direct_coverage != "gap" or matched_preferences:
+            quick_tier = "exploratory"
         else:
-            quick_fit = "weak"
+            quick_tier = "off-target"
     compatibility = "compatible" if not compatibility_groups or matched_compatibility else "reference-only"
-    if compatibility == "reference-only" and quick_fit == "strong":
-        quick_fit = "usable"
+    quick_fit = {
+        "strong": "strong" if compatibility == "compatible" else "usable",
+        "related": "usable",
+        "exploratory": "usable",
+        "off-target": "weak",
+    }[quick_tier]
     return {
+        "quick_tier": quick_tier,
         "quick_fit": quick_fit,
         "quick_score": round(quick_score, 3),
         "quick_matched_groups": matched,
@@ -943,20 +948,33 @@ def _enrich_candidate(
     }
 
 
-def _sort_candidates(candidates: list[dict[str, Any]], limit: int) -> list[dict[str, Any]]:
-    ranked = sorted(
-        candidates,
-        key=lambda example: (
-            -COVERAGE_RANK[example["coverage"]],
+def _sort_candidates(
+    candidates: list[dict[str, Any]],
+    limit: int,
+    *,
+    ranking_mode: str = "quick",
+) -> list[dict[str, Any]]:
+    def ranking_key(example: dict[str, Any]) -> tuple[Any, ...]:
+        quick_prefix = (
+            -QUICK_TIER_RANK[example.get("quick_tier", "off-target")],
             -QUICK_FIT_RANK[example.get("quick_fit", "weak")],
             -float(example.get("quick_score", 0.0)),
+        )
+        strict_prefix = (-COVERAGE_RANK[example["coverage"]],)
+        prefix = (*quick_prefix, *strict_prefix) if ranking_mode == "quick" else (*strict_prefix, *quick_prefix)
+        return (
+            *prefix,
             -len(example.get("matched_mechanism_groups", [])),
             -len(example.get("matched_query_groups", [])),
             example["last_verified"] is None,
             -float(example["recall_score"]),
             -int(example["last_shallow_check"].replace("-", "")),
             example["id"],
-        ),
+        )
+
+    ranked = sorted(
+        candidates,
+        key=ranking_key,
     )
     return _diversify_examples(ranked, limit)
 
@@ -973,6 +991,7 @@ def _global_candidate_pool(
     kind: str | None,
     candidate_limit: int,
     expanded: bool,
+    ranking_mode: str,
 ) -> tuple[list[dict[str, Any]], int]:
     stage = "global-expanded" if expanded else "global"
     candidates: list[dict[str, Any]] = []
@@ -997,10 +1016,31 @@ def _global_candidate_pool(
         )
         if candidate["coverage"] != "gap":
             candidates.append(candidate)
-    return _sort_candidates(candidates, candidate_limit), scanned
+    return _sort_candidates(candidates, candidate_limit, ranking_mode=ranking_mode), scanned
 
 
-def _merge_candidate_pools(pools: list[list[dict[str, Any]]], limit: int) -> list[dict[str, Any]]:
+def _merge_candidate_pools(
+    pools: list[list[dict[str, Any]]],
+    limit: int,
+    *,
+    ranking_mode: str = "quick",
+) -> list[dict[str, Any]]:
+    def winner_key(value: dict[str, Any]) -> tuple[Any, ...]:
+        quick_prefix = (
+            QUICK_TIER_RANK[value.get("quick_tier", "off-target")],
+            QUICK_FIT_RANK[value.get("quick_fit", "weak")],
+            float(value.get("quick_score", 0.0)),
+        )
+        strict_prefix = (COVERAGE_RANK[value["coverage"]],)
+        prefix = (*quick_prefix, *strict_prefix) if ranking_mode == "quick" else (*strict_prefix, *quick_prefix)
+        return (
+            *prefix,
+            max(STAGE_RANK[stage] for stage in value["retrieval_stages"]),
+            len(value.get("matched_mechanism_groups", [])),
+            len(value.get("matched_query_groups", [])),
+            float(value["recall_score"]),
+        )
+
     merged: dict[str, dict[str, Any]] = {}
     for pool in pools:
         for candidate in pool:
@@ -1009,31 +1049,15 @@ def _merge_candidate_pools(pools: list[list[dict[str, Any]]], limit: int) -> lis
                 merged[candidate["id"]] = candidate
                 continue
             stages = list(dict.fromkeys([*current["retrieval_stages"], *candidate["retrieval_stages"]]))
-            candidate_key = (
-                COVERAGE_RANK[candidate["coverage"]],
-                QUICK_FIT_RANK[candidate.get("quick_fit", "weak")],
-                float(candidate.get("quick_score", 0.0)),
-                max(STAGE_RANK[stage] for stage in candidate["retrieval_stages"]),
-                len(candidate.get("matched_mechanism_groups", [])),
-                len(candidate.get("matched_query_groups", [])),
-                float(candidate["recall_score"]),
-            )
-            current_key = (
-                COVERAGE_RANK[current["coverage"]],
-                QUICK_FIT_RANK[current.get("quick_fit", "weak")],
-                float(current.get("quick_score", 0.0)),
-                max(STAGE_RANK[stage] for stage in current["retrieval_stages"]),
-                len(current.get("matched_mechanism_groups", [])),
-                len(current.get("matched_query_groups", [])),
-                float(current["recall_score"]),
-            )
+            candidate_key = winner_key(candidate)
+            current_key = winner_key(current)
             winner = candidate if candidate_key > current_key else current
             merged[candidate["id"]] = {
                 **winner,
                 "recall_score": max(float(current["recall_score"]), float(candidate["recall_score"])),
                 "retrieval_stages": stages,
             }
-    return _sort_candidates(list(merged.values()), limit)
+    return _sort_candidates(list(merged.values()), limit, ranking_mode=ranking_mode)
 
 
 def _coverage_summary(candidates: list[dict[str, Any]], target_count: int) -> dict[str, Any]:
@@ -1049,35 +1073,115 @@ def _coverage_summary(candidates: list[dict[str, Any]], target_count: int) -> di
     }
 
 
+def _quick_family_key(candidate: dict[str, Any]) -> str:
+    motion_ids = candidate.get("matched_motion_ids") or candidate.get("motion_ids") or []
+    if motion_ids:
+        return f"{candidate['site_id']}|{'|'.join(sorted(str(value) for value in motion_ids))}"
+    return f"{candidate['site_id']}|{candidate['id']}"
+
+
+def _select_quick_candidates(candidates: list[dict[str, Any]], target_count: int) -> list[dict[str, Any]]:
+    eligible = [
+        candidate
+        for candidate in candidates
+        if candidate.get("quick_tier") in {"strong", "related", "exploratory"}
+    ]
+    strong_target = (target_count + 2) // 3
+    related_target = (target_count * 2 + 4) // 5
+    exploratory_target = max(0, target_count - strong_target - related_target)
+    quotas = {
+        "strong": strong_target,
+        "related": related_target,
+        "exploratory": exploratory_target,
+    }
+    selected: list[dict[str, Any]] = []
+    selected_ids: set[str] = set()
+    source_counts: dict[str, int] = {}
+    family_counts: dict[str, int] = {}
+
+    def add(candidate: dict[str, Any]) -> bool:
+        if candidate["id"] in selected_ids:
+            return False
+        source_id = candidate["site_id"]
+        family = _quick_family_key(candidate)
+        if source_counts.get(source_id, 0) >= 3 or family_counts.get(family, 0) >= 2:
+            return False
+        selected.append(candidate)
+        selected_ids.add(candidate["id"])
+        source_counts[source_id] = source_counts.get(source_id, 0) + 1
+        family_counts[family] = family_counts.get(family, 0) + 1
+        return True
+
+    for tier in ("strong", "related", "exploratory"):
+        added = 0
+        for candidate in eligible:
+            if candidate.get("quick_tier") != tier:
+                continue
+            if add(candidate):
+                added += 1
+            if added >= quotas[tier] or len(selected) >= target_count:
+                break
+
+    for candidate in eligible:
+        if len(selected) >= target_count:
+            break
+        add(candidate)
+    return selected
+
+
 def _quick_coverage_summary(
     candidates: list[dict[str, Any]],
     target_count: int,
     site_by_id: dict[str, dict[str, Any]],
-) -> dict[str, Any]:
+    requested_groups: list[dict[str, Any]] | None = None,
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     delivery_ready = [
         candidate
         for candidate in candidates
         if QUICK_DELIVERY_CAPABILITIES.intersection(site_by_id[candidate["site_id"]]["capabilities"])
     ]
-    strong = [candidate for candidate in delivery_ready if candidate.get("quick_fit") == "strong"]
-    usable = [candidate for candidate in delivery_ready if candidate.get("quick_fit") == "usable"]
-    weak = [candidate for candidate in delivery_ready if candidate.get("quick_fit") == "weak"]
-    eligible = [*strong, *usable]
-    source_count = len({candidate["site_id"] for candidate in eligible})
+    strong = [candidate for candidate in delivery_ready if candidate.get("quick_tier") == "strong"]
+    related = [candidate for candidate in delivery_ready if candidate.get("quick_tier") == "related"]
+    exploratory = [candidate for candidate in delivery_ready if candidate.get("quick_tier") == "exploratory"]
+    off_target = [candidate for candidate in delivery_ready if candidate.get("quick_tier") == "off-target"]
+    eligible = [*strong, *related, *exploratory]
+    quick_candidates = _select_quick_candidates(eligible, target_count)
+    source_count = len({candidate["site_id"] for candidate in quick_candidates})
     minimum_sources = min(3, target_count)
-    complete = len(eligible) >= target_count and source_count >= minimum_sources
-    return {
+    complete = len(quick_candidates) >= target_count and source_count >= minimum_sources
+    core_group_ids = {
+        group["id"] for group in (requested_groups or []) if group.get("role") == "core"
+    }
+    best_core_match_count = max(
+        (
+            len(core_group_ids.intersection(candidate.get("quick_core_matches", [])))
+            for candidate in delivery_ready
+        ),
+        default=0,
+    )
+    minimum_core_matches = (len(core_group_ids) + 1) // 2 if core_group_ids else 0
+    core_behavior_gap = bool(core_group_ids) and best_core_match_count < minimum_core_matches
+    summary = {
         "status": "strong" if len(strong) >= min(3, target_count) and complete else "usable" if eligible else "gap",
         "complete": complete,
         "target_count": target_count,
         "strong_count": len(strong),
-        "usable_count": len(usable),
-        "weak_count": len(weak),
+        "related_count": len(related),
+        "exploratory_count": len(exploratory),
+        "off_target_count": len(off_target),
+        "usable_count": len(related) + len(exploratory),
+        "weak_count": len(off_target),
         "eligible_count": len(eligible),
+        "selected_count": len(quick_candidates),
         "delivery_ready_count": len(delivery_ready),
         "source_count": source_count,
         "minimum_source_count": minimum_sources,
+        "core_group_count": len(core_group_ids),
+        "best_core_match_count": best_core_match_count,
+        "minimum_core_match_count": minimum_core_matches,
+        "core_behavior_gap": core_behavior_gap,
     }
+    return summary, quick_candidates
 
 
 def _diversify_examples(examples: list[dict[str, Any]], limit: int) -> list[dict[str, Any]]:
@@ -1151,16 +1255,26 @@ def search_catalog(
     examples_per_motion: int = 10,
     candidate_limit: int = 48,
     strategy: str = "auto",
-    target_count: int = 8,
+    mode: str = "quick",
+    quick_count: int = 15,
+    formal_target: int = 8,
+    target_count: int | None = None,
 ) -> dict[str, Any]:
+    if target_count is not None:
+        quick_count = target_count
+        formal_target = target_count
     if not 1 <= examples_per_motion <= 20:
         raise ValueError("examples_per_motion must be between 1 and 20")
     if not 1 <= candidate_limit <= 64:
         raise ValueError("candidate_limit must be between 1 and 64")
     if strategy not in {"auto", "taxonomy", "global", "expanded"}:
         raise ValueError("strategy must be auto, taxonomy, global, or expanded")
-    if not 1 <= target_count <= 10:
-        raise ValueError("target_count must be between 1 and 10")
+    if mode not in {"quick", "deep"}:
+        raise ValueError("mode must be quick or deep")
+    if not 1 <= quick_count <= 20:
+        raise ValueError("quick_count must be between 1 and 20")
+    if not 1 <= formal_target <= 10:
+        raise ValueError("formal_target must be between 1 and 10")
     catalog, source, warnings = load_effective_catalog()
     motions, motion_errors = load_motions()
     if motion_errors:
@@ -1256,6 +1370,7 @@ def search_catalog(
     taxonomy_pool = _sort_candidates(
         [candidate for candidate in taxonomy_pool if candidate["coverage"] != "gap"],
         candidate_limit,
+        ranking_mode=mode,
     )
 
     trace: list[dict[str, Any]] = []
@@ -1265,22 +1380,33 @@ def search_catalog(
 
     if strategy in {"auto", "taxonomy"}:
         candidate_pools.append(taxonomy_pool)
-        taxonomy_coverage = _coverage_summary(taxonomy_pool, target_count)
+        taxonomy_coverage = _coverage_summary(taxonomy_pool, formal_target)
+        taxonomy_quick_coverage, _ = _quick_coverage_summary(
+            taxonomy_pool, quick_count, site_by_id, requested_groups
+        )
         trace.append(
             {
                 "stage": "taxonomy",
                 "examples_scanned": len(pooled),
                 **taxonomy_coverage,
+                "quick_eligible_count": taxonomy_quick_coverage["eligible_count"],
+                "quick_selected_count": taxonomy_quick_coverage["selected_count"],
                 "coverage_status": taxonomy_coverage["status"],
                 "status": "completed",
             }
         )
         retrieval_level = "taxonomy"
 
-    candidate_pool = _merge_candidate_pools(candidate_pools, candidate_limit) if candidate_pools else []
-    current_coverage = _coverage_summary(candidate_pool, target_count)
+    candidate_pool = (
+        _merge_candidate_pools(candidate_pools, candidate_limit, ranking_mode=mode)
+        if candidate_pools
+        else []
+    )
+    current_coverage = _coverage_summary(candidate_pool, formal_target)
 
-    should_run_global = strategy == "global" or (strategy == "auto" and not current_coverage["complete"])
+    should_run_global = strategy == "global" or (
+        strategy == "auto" and (mode == "quick" or not current_coverage["complete"])
+    )
     if should_run_global:
         global_pool, scanned = _global_candidate_pool(
             query,
@@ -1293,16 +1419,22 @@ def search_catalog(
             kind=kind,
             candidate_limit=candidate_limit,
             expanded=False,
+            ranking_mode=mode,
         )
         candidate_pools.append(global_pool)
-        candidate_pool = _merge_candidate_pools(candidate_pools, candidate_limit)
-        current_coverage = _coverage_summary(candidate_pool, target_count)
-        global_coverage = _coverage_summary(global_pool, target_count)
+        candidate_pool = _merge_candidate_pools(candidate_pools, candidate_limit, ranking_mode=mode)
+        current_coverage = _coverage_summary(candidate_pool, formal_target)
+        global_coverage = _coverage_summary(global_pool, formal_target)
+        global_quick_coverage, _ = _quick_coverage_summary(
+            candidate_pool, quick_count, site_by_id, requested_groups
+        )
         trace.append(
             {
                 "stage": "global",
                 "examples_scanned": scanned,
                 **global_coverage,
+                "quick_eligible_count": global_quick_coverage["eligible_count"],
+                "quick_selected_count": global_quick_coverage["selected_count"],
                 "coverage_status": global_coverage["status"],
                 "status": "completed",
             }
@@ -1314,11 +1446,28 @@ def search_catalog(
                 "stage": "global",
                 "status": "skipped",
                 "examples_scanned": 0,
-                "reason": "taxonomy returned the requested number of exact local candidates",
+                "reason": "taxonomy returned the requested number of strict local candidates for deep mode",
             }
         )
 
-    should_run_expanded = strategy == "expanded" or (strategy == "auto" and not current_coverage["complete"])
+    pre_expansion_quick_coverage, _ = _quick_coverage_summary(
+        candidate_pool, quick_count, site_by_id, requested_groups
+    )
+    quick_expansion_floor = min(10, quick_count)
+    should_run_expanded = strategy == "expanded" or (
+        strategy == "auto"
+        and (
+            (
+                mode == "quick"
+                and (
+                    pre_expansion_quick_coverage["selected_count"] < quick_expansion_floor
+                    or pre_expansion_quick_coverage["strong_count"] == 0
+                    or pre_expansion_quick_coverage["core_behavior_gap"]
+                )
+            )
+            or (mode == "deep" and not current_coverage["complete"])
+        )
+    )
     if should_run_expanded:
         expanded_pool, scanned = _global_candidate_pool(
             query,
@@ -1331,16 +1480,22 @@ def search_catalog(
             kind=kind,
             candidate_limit=candidate_limit,
             expanded=True,
+            ranking_mode=mode,
         )
         candidate_pools.append(expanded_pool)
-        candidate_pool = _merge_candidate_pools(candidate_pools, candidate_limit)
-        current_coverage = _coverage_summary(candidate_pool, target_count)
-        expanded_coverage = _coverage_summary(expanded_pool, target_count)
+        candidate_pool = _merge_candidate_pools(candidate_pools, candidate_limit, ranking_mode=mode)
+        current_coverage = _coverage_summary(candidate_pool, formal_target)
+        expanded_coverage = _coverage_summary(expanded_pool, formal_target)
+        expanded_quick_coverage, _ = _quick_coverage_summary(
+            candidate_pool, quick_count, site_by_id, requested_groups
+        )
         trace.append(
             {
                 "stage": "global-expanded",
                 "examples_scanned": scanned,
                 **expanded_coverage,
+                "quick_eligible_count": expanded_quick_coverage["eligible_count"],
+                "quick_selected_count": expanded_quick_coverage["selected_count"],
                 "coverage_status": expanded_coverage["status"],
                 "status": "completed",
             }
@@ -1353,41 +1508,54 @@ def search_catalog(
                 "stage": "global-expanded",
                 "status": "skipped",
                 "examples_scanned": 0,
-                "reason": "the preceding local stage returned the requested number of exact candidates",
+                "reason": (
+                    f"the global fuzzy scan returned at least {quick_expansion_floor} meaningful quick candidates"
+                    if mode == "quick"
+                    else "the preceding local stage returned the requested number of strict candidates"
+                ),
             }
         )
 
     if strategy == "taxonomy":
         candidate_pool = taxonomy_pool
-        current_coverage = _coverage_summary(candidate_pool, target_count)
+        current_coverage = _coverage_summary(candidate_pool, formal_target)
     elif strategy in {"global", "expanded"}:
-        candidate_pool = _merge_candidate_pools(candidate_pools, candidate_limit)
-        current_coverage = _coverage_summary(candidate_pool, target_count)
+        candidate_pool = _merge_candidate_pools(candidate_pools, candidate_limit, ranking_mode=mode)
+        current_coverage = _coverage_summary(candidate_pool, formal_target)
 
-    quick_coverage = _quick_coverage_summary(candidate_pool, target_count, site_by_id)
+    quick_coverage, quick_candidates = _quick_coverage_summary(
+        candidate_pool, quick_count, site_by_id, requested_groups
+    )
     best_candidate = candidate_pool[0] if candidate_pool else None
     missing_group_ids = best_candidate.get("quick_missing_core_groups", []) if best_candidate else [
         group["id"] for group in requested_groups if group["role"] == "core"
     ]
     group_by_id = {group["id"]: group for group in requested_groups}
+    supplement_group_ids = list(dict.fromkeys([
+        *missing_group_ids,
+        *[group["id"] for group in requested_groups if group["role"] == "core"],
+    ]))
     missing_terms = [
         next((term for term in group_by_id[group_id]["terms"] if re.search(r"[a-z]", normalize_text(term))), group_by_id[group_id]["terms"][0])
-        for group_id in missing_group_ids
+        for group_id in supplement_group_ids
         if group_id in group_by_id
     ]
     external_query = query + (" | " + " ".join(missing_terms) if missing_terms else "")
-    local_ladder_exhausted = expanded_completed
-    minimum_strong = min(3, target_count)
-    if not local_ladder_exhausted:
+    local_ladder_complete = expanded_completed or (
+        mode == "quick" and pre_expansion_quick_coverage["selected_count"] >= quick_expansion_floor
+    )
+    if not local_ladder_complete:
         external_decision = "skip"
-    elif quick_coverage["complete"] and quick_coverage["strong_count"] >= minimum_strong:
+    elif quick_coverage["core_behavior_gap"]:
+        external_decision = "required"
+    elif quick_coverage["complete"]:
         external_decision = "skip"
     elif quick_coverage["eligible_count"] >= 4:
         external_decision = "offer"
     else:
         external_decision = "required"
     external_recommended = external_decision == "required"
-    if not local_ladder_exhausted:
+    if not local_ladder_complete:
         external_reason = "local retrieval ladder not exhausted"
     elif external_decision == "skip":
         external_reason = (
@@ -1400,16 +1568,23 @@ def search_catalog(
             "but the pool is incomplete or has fewer than three strong matches; show local results first "
             "and offer an optional focused supplement"
         )
+    elif quick_coverage["core_behavior_gap"]:
+        external_reason = (
+            f"the best local candidate covers {quick_coverage['best_core_match_count']} of "
+            f"{quick_coverage['core_group_count']} requested core groups; a focused external supplement "
+            "is required while the related local quick candidates remain visible"
+        )
     else:
         external_reason = (
             f"only {quick_coverage['eligible_count']} usable quick-pass candidates remain for a target of "
-            f"{target_count}; a focused external supplement is required"
+            f"{quick_count}; a focused external supplement is required"
         )
 
     return {
         "query": query,
         "filters": {"stack": stack, "capability": capability, "kind": kind},
         "strategy": strategy,
+        "mode": mode,
         "retrieval_level": retrieval_level,
         "examples_total": len(examples),
         "query_variants": query_variants,
@@ -1422,6 +1597,7 @@ def search_catalog(
         "catalog_warnings": warnings,
         "matches": matches,
         "candidate_pool": candidate_pool,
+        "quick_candidates": quick_candidates,
         "coverage": current_coverage,
         "quick_coverage": quick_coverage,
         "retrieval_trace": trace,

@@ -22,7 +22,7 @@ sys.path.insert(0, str(MAINTAINER))
 from build_evidence_board import prepare_manifest  # noqa: E402
 from build_visual_index import build_index_data  # noqa: E402
 from catalog_overview import build_catalog_overview, render_markdown  # noqa: E402
-from catalog_lib import _diversify_examples, load_examples, load_json, load_motions, load_query_expansions, search_catalog, validate_catalog_data  # noqa: E402
+from catalog_lib import _diversify_examples, _select_quick_candidates, load_examples, load_json, load_motions, load_query_expansions, search_catalog, validate_catalog_data  # noqa: E402
 from check_catalog_update import check_update, validate_manifest  # noqa: E402
 from analyze_motion_media import analyze, extract_dynamic_crops  # noqa: E402
 from classify_source_health import classify_case, classify_manifest  # noqa: E402
@@ -60,10 +60,10 @@ class CatalogToolsTest(unittest.TestCase):
         self.assertEqual(errors, [])
         self.assertEqual(motion_errors, [])
         self.assertEqual(example_errors, [])
-        self.assertEqual(len(catalog["sites"]), 23)
+        self.assertEqual(len(catalog["sites"]), 24)
         site_ids = {site["id"] for site in catalog["sites"]}
         self.assertTrue({"uiverse", "unicorn-studio", "lottielab", "design-spells", "transitions-dev", "originkit", "pixel-perfect"} <= site_ids)
-        self.assertTrue({"aceternity-ui", "animate-ui", "21st-dev", "motion-primitives"} <= site_ids)
+        self.assertTrue({"aceternity-ui", "animate-ui", "21st-dev", "motion-primitives", "threeui"} <= site_ids)
         self.assertTrue({"hover-css", "codepen", "lottiefiles"}.isdisjoint(site_ids))
         self.assertGreaterEqual(len(motions), 65)
         self.assertGreaterEqual(len(examples), 3000)
@@ -249,7 +249,14 @@ class CatalogToolsTest(unittest.TestCase):
         self.assertGreaterEqual(source_counts["motion-primitives"], 10)
         self.assertNotIn("fancy-components", source_counts)
         self.assertTrue(all(example["last_verified"] is not None for example in index_examples))
-        self.assertTrue(all(example["verification"]["kind"] == "browser-page-motion" for example in index_examples))
+        self.assertTrue(all(
+            example["verification"]["kind"] == "browser-page-motion"
+            or (
+                example["site_id"] == "threeui"
+                and example["verification"]["kind"] == "official-media-frame-difference"
+            )
+            for example in index_examples
+        ))
         self.assertTrue(all(example["source_evidence"]["index_url"].startswith("https://") for example in index_examples))
         self.assertTrue(all(example["source_evidence"]["discovered_at"] <= example["last_shallow_check"] for example in index_examples))
         self.assertTrue(all("/@" in example["url"] and "%40" not in example["url"] for example in index_examples if example["site_id"] == "21st-dev"))
@@ -332,14 +339,14 @@ class CatalogToolsTest(unittest.TestCase):
     def test_catalog_overview_reports_current_bundled_counts(self):
         overview = build_catalog_overview()
 
-        self.assertEqual(overview["catalog_version"], "2026.08.9")
-        self.assertEqual(overview["source_count"], 23)
-        self.assertEqual(overview["case_count"], 3656)
+        self.assertEqual(overview["catalog_version"], "2026.08.10")
+        self.assertEqual(overview["source_count"], 24)
+        self.assertEqual(overview["case_count"], 3671)
         self.assertNotIn("sites", overview)
         self.assertEqual(
             overview["announcement"],
-            "当前版本 2026.08.9 的内置清单共收录 23 个来源网站，"
-            "案例库中共有 3656 个案例。"
+            "当前版本 2026.08.10 的内置清单共收录 24 个来源网站，"
+            "案例库中共有 3671 个案例。"
             "如果你有兴趣，可以查看网站清单，并手动点击链接访问任意来源网站。",
         )
 
@@ -383,7 +390,7 @@ class CatalogToolsTest(unittest.TestCase):
             "never hardcode or estimate",
             "Do not repeat the announcement later in the same task",
             "Return every listed website as a clickable Markdown link",
-            "does not count toward the default eight concrete-case links",
+            "does not count toward the default fifteen fuzzy quick links",
             "Let the user manually click a link",
         ):
             self.assertIn(rule, rules)
@@ -491,7 +498,7 @@ class CatalogToolsTest(unittest.TestCase):
     def test_expanded_examples_are_retrievable_beyond_top_three_sites(self):
         checks = {
             "滚动文字逐字揭示": ("scroll-text-scrub", "originkit"),
-            "左右横向画廊": ("scroll-horizontal", "aceternity-ui"),
+            "左右横向画廊": ("scroll-horizontal", "threeui"),
             "按钮跟随鼠标": ("hover-magnetic", "motion"),
             "卡片展开成详情": ("transition-container-transform", "motion"),
         }
@@ -547,16 +554,17 @@ class CatalogToolsTest(unittest.TestCase):
             candidate_limit=64,
         )
         completed = {item["stage"]: item for item in result["retrieval_trace"] if item["status"] == "completed"}
-        self.assertEqual(result["examples_total"], 3656)
+        self.assertEqual(result["examples_total"], 3671)
         self.assertEqual(completed["global"]["examples_scanned"], result["examples_total"])
         self.assertEqual(completed["global-expanded"]["examples_scanned"], result["examples_total"])
         self.assertEqual(result["retrieval_level"], "global-expanded")
         self.assertEqual(result["candidate_pool"][0]["id"], "react-bits-pixel-transition")
         self.assertEqual(result["candidate_pool"][0]["coverage"], "adjacent")
+        self.assertEqual(result["candidate_pool"][0]["quick_tier"], "strong")
         self.assertEqual(result["candidate_pool"][0]["quick_fit"], "strong")
         self.assertIn("style-cyberpunk", result["candidate_pool"][0]["missing_query_groups"])
         self.assertTrue(result["quick_coverage"]["complete"])
-        self.assertEqual(result["external_search"]["decision"], "offer")
+        self.assertEqual(result["external_search"]["decision"], "skip")
         self.assertFalse(result["external_search"]["recommended"])
         self.assertEqual(result["external_search"]["max_initial_queries"], 1)
         self.assertEqual(result["external_search"]["provenance_label"], "外网补充")
@@ -569,19 +577,29 @@ class CatalogToolsTest(unittest.TestCase):
         )
         self.assertEqual(result["coverage"]["exact_count"], 0)
         self.assertTrue(result["quick_coverage"]["complete"])
-        self.assertGreaterEqual(result["quick_coverage"]["strong_count"], 3)
+        self.assertGreaterEqual(result["quick_coverage"]["strong_count"], 1)
         self.assertGreaterEqual(result["quick_coverage"]["source_count"], 3)
+        self.assertEqual(result["quick_coverage"]["target_count"], 15)
+        self.assertEqual(result["quick_coverage"]["selected_count"], 15)
         self.assertEqual(result["external_search"]["decision"], "skip")
         self.assertFalse(result["external_search"]["recommended"])
-        self.assertIn("react-bits-liquid-chrome", {item["id"] for item in result["candidate_pool"][:8]})
-        self.assertTrue(
-            all("scene-background" in item["quick_core_matches"] for item in result["candidate_pool"][:8])
+        self.assertEqual(result["quick_candidates"][0]["id"], "threeui-stream-convergence")
+        self.assertIn("react-bits-liquid-chrome", {item["id"] for item in result["quick_candidates"][:3]})
+        self.assertIn("scene-background", result["quick_candidates"][0]["quick_core_matches"])
+        self.assertLessEqual(
+            max(
+                sum(item["site_id"] == site_id for item in result["quick_candidates"])
+                for site_id in {item["site_id"] for item in result["quick_candidates"]}
+            ),
+            3,
         )
 
     def test_crt_gap_emits_focused_external_query_only_after_local_ladder(self):
         result = search_catalog("CRT 电视关机扫描线页面转场", strategy="auto", candidate_limit=64)
         self.assertFalse(result["coverage"]["complete"])
-        self.assertEqual(result["quick_coverage"]["eligible_count"], 0)
+        self.assertGreaterEqual(result["quick_coverage"]["eligible_count"], 15)
+        self.assertTrue(result["quick_coverage"]["core_behavior_gap"])
+        self.assertEqual(result["quick_coverage"]["best_core_match_count"], 2)
         self.assertEqual(result["external_search"]["decision"], "required")
         self.assertTrue(result["external_search"]["recommended"])
         self.assertIn("crt", result["external_search"]["query"].lower())
@@ -614,17 +632,88 @@ class CatalogToolsTest(unittest.TestCase):
         payload = json.loads(completed.stdout)
         self.assertNotIn("matches", payload)
         self.assertEqual(payload["strategy"], "auto")
+        self.assertEqual(payload["mode"], "quick")
         self.assertIn("retrieval_trace", payload)
         self.assertIn("quick_coverage", payload)
+        self.assertEqual(payload["quick_coverage"]["target_count"], 15)
+        self.assertEqual(len(payload["quick_candidates"]), 15)
         self.assertIn("external_search", payload)
         self.assertGreaterEqual(len(payload["candidate_pool"]), 48)
         self.assertLessEqual(len(payload["candidate_pool"]), 64)
+
+    def test_quick_and_formal_targets_are_independent(self):
+        result = search_catalog(
+            "web 动态渐变流光背景 绚丽有机 多色液态融合",
+            mode="quick",
+            quick_count=15,
+            formal_target=8,
+            candidate_limit=48,
+        )
+        self.assertEqual(result["mode"], "quick")
+        self.assertEqual(result["quick_coverage"]["target_count"], 15)
+        self.assertEqual(result["quick_coverage"]["selected_count"], 15)
+        self.assertEqual(result["coverage"]["target_count"], 8)
+        self.assertEqual(
+            {item["quick_tier"] for item in result["quick_candidates"]} - {"strong", "related", "exploratory"},
+            set(),
+        )
+        self.assertLessEqual(
+            max(
+                sum(item["site_id"] == site_id for item in result["quick_candidates"])
+                for site_id in {item["site_id"] for item in result["quick_candidates"]}
+            ),
+            3,
+        )
+        with self.assertRaisesRegex(ValueError, "quick_count must be between 1 and 20"):
+            search_catalog("button", quick_count=21)
+        with self.assertRaisesRegex(ValueError, "formal_target must be between 1 and 10"):
+            search_catalog("button", formal_target=11)
+
+    def test_quick_selection_preserves_tier_mix_and_family_caps(self):
+        candidates = []
+        for tier, count in (("strong", 5), ("related", 6), ("exploratory", 4)):
+            for index in range(count):
+                candidates.append(
+                    {
+                        "id": f"{tier}-{index}",
+                        "site_id": f"site-{tier}-{index}",
+                        "motion_ids": [f"family-{tier}-{index}"],
+                        "quick_tier": tier,
+                    }
+                )
+        selected = _select_quick_candidates(candidates, 15)
+        self.assertEqual(len(selected), 15)
+        self.assertEqual(
+            {tier: sum(item["quick_tier"] == tier for item in selected) for tier in ("strong", "related", "exploratory")},
+            {"strong": 5, "related": 6, "exploratory": 4},
+        )
+
+        crowded = [
+            {
+                "id": f"crowded-{index}",
+                "site_id": "same-site",
+                "motion_ids": ["same-family"],
+                "quick_tier": "strong",
+            }
+            for index in range(6)
+        ]
+        crowded.extend(
+            {
+                "id": f"diverse-{index}",
+                "site_id": f"site-{index}",
+                "motion_ids": [f"family-{index}"],
+                "quick_tier": "related",
+            }
+            for index in range(13)
+        )
+        selected = _select_quick_candidates(crowded, 15)
+        self.assertLessEqual(sum(item["id"].startswith("crowded-") for item in selected), 2)
 
     def test_real_example_followups_require_pagination_and_deduplication(self):
         skill_text = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
         preview_rules = (SKILL_ROOT / "references" / "source-preview.md").read_text(encoding="utf-8")
 
-        self.assertIn("next page of three by default", skill_text)
+        self.assertIn("next fifteen unseen fuzzy candidates by default", skill_text)
         for rule in (
             "next page of exactly three examples",
             "shown example IDs",
@@ -643,9 +732,9 @@ class CatalogToolsTest(unittest.TestCase):
         ladder_rules = (SKILL_ROOT / "references" / "retrieval-ladder.md").read_text(encoding="utf-8")
 
         for rule in (
-            "exactly eight eligible concrete case links by default",
-            "Reduce the count below eight only when fewer than eight",
-            "快速初筛，尚未完成视觉复核",
+            "Show about fifteen concrete case links by default",
+            "Reduce below fifteen only after the full fuzzy scan",
+            "快速模糊初筛，尚未实时视觉复核",
             "继续探索入口",
             "Do not create an aggregation page",
             "Formal results must be `exact` and `高` or `中`",
@@ -676,6 +765,10 @@ class CatalogToolsTest(unittest.TestCase):
             "召回 48/64",
             "实时检查 12/24",
             "捕获 8/16",
+            "Treat user feedback as the convergence signal, not the start signal",
+            "batches of roughly three to five",
+            "stop launching new work from the old ordering at the next candidate boundary",
+            "A result labeled `exact` under an older brief does not inherit that label",
         ):
             self.assertIn(rule, deep_rules)
         self.assertIn("Build a board only when the user explicitly requests", preview_rules)
@@ -726,9 +819,9 @@ class CatalogToolsTest(unittest.TestCase):
         self.assertIn("only when the current user request explicitly contains `直接深度匹配`", skill_text)
         self.assertIn("A retrieval trace or progress message is not a delivered quick pass", skill_text)
         self.assertIn("Treat soft-singular wording such as `帮我找一个`", skill_text)
-        self.assertIn("Keep `--target-count 8`", exact_rules)
+        self.assertIn("Keep `--quick-count 15 --formal-target 8`", exact_rules)
         self.assertIn("Do not replace it with a retrieval count, progress summary, or early recommendation", exact_rules)
-        self.assertIn("put one recommendation first and keep the other eligible references", inspiration_rules)
+        self.assertIn("put one recommendation first and keep the other meaningful references", inspiration_rules)
         self.assertIn("Soft-singular requests such as `帮我找一个`", preview_rules)
         self.assertIn("do not run `rank_visual_matches.py --limit 1`", deep_rules)
         for rules in (skill_text, exact_rules, inspiration_rules, preview_rules, deep_rules):

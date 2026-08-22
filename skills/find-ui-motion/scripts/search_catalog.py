@@ -26,7 +26,20 @@ def parser() -> argparse.ArgumentParser:
         default="auto",
         help="auto runs taxonomy, full-index lexical, then local query expansion only as needed",
     )
-    result.add_argument("--target-count", type=int, default=8, help="Desired quick-pass candidates, default 8 and maximum 10")
+    result.add_argument(
+        "--mode",
+        choices=("quick", "deep"),
+        default="quick",
+        help="quick favors fuzzy breadth and fast stopping; deep preserves strict formal recall",
+    )
+    result.add_argument("--quick-count", type=int, default=15, help="Desired fuzzy quick-pass candidates, default 15 and maximum 20")
+    result.add_argument("--formal-target", type=int, default=8, help="Desired strict deep-match results, default 8 and maximum 10")
+    result.add_argument(
+        "--target-count",
+        type=int,
+        default=None,
+        help="Legacy alias that sets both --quick-count and --formal-target",
+    )
     result.add_argument("--trace", action="store_true", help="Show local escalation, strict coverage, quick coverage, and external-search decision")
     result.add_argument(
         "--candidate-pool-only",
@@ -44,8 +57,9 @@ def render_text(data: dict, *, show_trace: bool = False) -> str:
         f"retrieval: {data['retrieval_level']} | coverage={data['coverage']['status']} "
         + f"exact={data['coverage']['exact_count']}/{data['coverage']['target_count']}",
         f"quick: {data['quick_coverage']['status']} | "
-        + f"strong={data['quick_coverage']['strong_count']} usable={data['quick_coverage']['usable_count']} "
-        + f"eligible={data['quick_coverage']['eligible_count']}/{data['quick_coverage']['target_count']}",
+        + f"strong={data['quick_coverage']['strong_count']} related={data['quick_coverage']['related_count']} "
+        + f"exploratory={data['quick_coverage']['exploratory_count']} "
+        + f"selected={data['quick_coverage']['selected_count']}/{data['quick_coverage']['target_count']}",
         "",
     ]
     if show_trace:
@@ -117,7 +131,11 @@ def main() -> int:
         raise SystemExit("--examples-per-motion must be between 1 and 20")
     if args.candidate_limit < 1 or args.candidate_limit > 64:
         raise SystemExit("--candidate-limit must be between 1 and 64")
-    if args.target_count < 1 or args.target_count > 10:
+    if args.quick_count < 1 or args.quick_count > 20:
+        raise SystemExit("--quick-count must be between 1 and 20")
+    if args.formal_target < 1 or args.formal_target > 10:
+        raise SystemExit("--formal-target must be between 1 and 10")
+    if args.target_count is not None and not 1 <= args.target_count <= 10:
         raise SystemExit("--target-count must be between 1 and 10")
     if args.candidate_pool_only and not args.json:
         raise SystemExit("--candidate-pool-only requires --json")
@@ -132,6 +150,9 @@ def main() -> int:
             examples_per_motion=args.examples_per_motion,
             candidate_limit=args.candidate_limit,
             strategy=args.strategy,
+            mode=args.mode,
+            quick_count=args.quick_count,
+            formal_target=args.formal_target,
             target_count=args.target_count,
         )
     except (OSError, ValueError, json.JSONDecodeError) as exc:
@@ -147,6 +168,7 @@ def main() -> int:
                 "example_source": data["example_source"],
                 "catalog_warnings": data["catalog_warnings"],
                 "strategy": data["strategy"],
+                "mode": data["mode"],
                 "retrieval_level": data["retrieval_level"],
                 "examples_total": data["examples_total"],
                 "query_variants": data["query_variants"],
@@ -155,6 +177,7 @@ def main() -> int:
                 "quick_coverage": data["quick_coverage"],
                 "retrieval_trace": data["retrieval_trace"],
                 "external_search": data["external_search"],
+                "quick_candidates": data["quick_candidates"],
                 "candidate_pool": data["candidate_pool"],
             }
             print(json.dumps(data, ensure_ascii=False, separators=(",", ":")))

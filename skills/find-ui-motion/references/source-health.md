@@ -1,6 +1,6 @@
 # Source Health Gate
 
-Apply this gate before showing any direct dynamic or interactive case link. A successful outer-page request proves only that the publisher's shell is reachable; it does not prove that the named item still exists or renders.
+Apply this live gate before selected-case verification, capture, formal visual ranking, implementation, or any claim that a case currently renders. The speed-first fuzzy pass may show direct catalog item links before this gate only when it is labeled `快速模糊初筛，尚未实时视觉复核`; those links are preliminary leads, not verified evidence. A successful outer-page request proves only that the publisher's shell is reachable; it does not prove that the named item still exists or renders.
 
 Passing source health never grants permission to search or return a video-only case. Apply the code-first and video authorization policy before this health gate; use this file only to decide whether an already eligible source currently renders.
 
@@ -58,15 +58,15 @@ The manifest shape is:
 }
 ```
 
-Treat `quick_eligible=true` as the minimum direct-case gate. Treat `deep_eligible=true` as an additional ranking gate, not a replacement for source health.
+Treat the classifier's legacy-named `quick_eligible=true` as the minimum current-health gate once a page is live-checked. It is not required for the preliminary fuzzy list. Treat `deep_eligible=true` as an additional ranking gate, not a replacement for source health.
 
 ## Hard exclusions
 
 - Never infer health from HTTP 200 on the wrapper alone.
 - Never call an empty page a GPU or screenshot limitation before checking current item-data failures, console errors, and expected render targets.
 - Never use `open-source-only` to rescue a `broken` item. That evidence class is allowed only when the exact source exists and its content is visible or the named case is resolved through an explicit category locator.
-- Never show `shell_reachable` or `broken` items in the eligible quick-case list. Return fewer results and state that the content-health gate exhausted the pool.
-- Keep `last_shallow_check` as metadata recall only. It cannot satisfy current eligibility.
+- Never keep a currently observed `shell_reachable` or `broken` item in selected-case evidence or the formal deep ranking. If a preliminary quick link later fails this gate, remove it from the active deep queue and report the corrected status rather than hiding the failure.
+- Keep `last_shallow_check` and historical `last_verified` as metadata recall only. They can help order the fuzzy quick list but cannot satisfy current live eligibility.
 
 ## Capture boundary
 
