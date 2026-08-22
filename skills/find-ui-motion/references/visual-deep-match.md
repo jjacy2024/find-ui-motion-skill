@@ -8,6 +8,8 @@ After formal ranking, route any external candidate with `match_quality=exact`, `
 
 ## Start and stop contract
 
+Enter this workflow only after delivering the user-visible quick pass, unless the current user request explicitly contains `直接深度匹配`. No other wording, inferred preference, screenshot specificity, early best candidate, or internal shortlist authorizes bypassing the quick pass.
+
 Before opening candidates, send one concise progress update that states:
 
 - the fixed recall, live-check, and capture-pool sizes and current stage;
@@ -15,7 +17,7 @@ Before opening candidates, send one concise progress update that states:
 - that the user can reply `停止深度匹配` at any time;
 - that Goal mode users can also pause from the goal progress row.
 
-Continue in the same task after the quick links. Do not send a final answer and promise to return later.
+Continue in the same task after the quick links. Do not send a final answer and promise to return later. A soft-singular request such as `帮我找一个` still keeps the default multi-case comparison: place the strongest formal result first or label it `最推荐`, but do not suppress the other qualifying results.
 
 When the user stops, do not start another page, capture, or analysis job. Let only an already-running safe tool call settle, then return the completed partial results and list the unchecked count. A paused Goal must not launch further work until resumed.
 
@@ -120,7 +122,7 @@ Do not average raw cosine, trajectory, and metadata scores as if they were calib
 
 Honor the selective VLM decision. Stop before VLM review when independent rankers agree. When they disagree, review at most the five returned IDs and report the real counter. Record `vlm_verdict: confirmed | contradicted | inconclusive` only for reviewed candidates. A VLM-confirmed low-confidence exact case may be promoted once to `中`; a contradicted case must be excluded; VLM review never changes `adjacent` into `exact`. Never send all 48-64 recalled candidates or all 24 live-checked candidates to a VLM.
 
-Return exactly eight formal results by default and never more than ten when explicitly requested. Formal eligibility is `match_quality == exact && confidence in {高, 中}`. Sort highest first. If the ranking script returns `status=needs-more-review`, continue through later fixed-pool candidates without exceeding 24 live checks or 16 captures. Reduce below eight only after it returns or can truthfully be updated to `status=confidence-shortfall` under the documented stopping conditions. Each result contains only its rank, title with direct item link, one-sentence match reason, confidence, and analysis depth. State access, trigger, rights, and confidence failures after the ranked list.
+Return exactly eight formal results by default and never more than ten when explicitly requested. Formal eligibility is `match_quality == exact && confidence in {高, 中}`. Sort highest first. For soft-singular recommendation wording, keep the limit at eight, label rank 1 `最推荐` when useful, and retain the remaining qualifying results; do not run `rank_visual_matches.py --limit 1` unless the user explicitly requires one result and no alternatives. If the ranking script returns `status=needs-more-review`, continue through later fixed-pool candidates without exceeding 24 live checks or 16 captures. Reduce below eight only after it returns or can truthfully be updated to `status=confidence-shortfall` under the documented stopping conditions. Each result contains only its rank, title with direct item link, one-sentence match reason, confidence, and analysis depth. State access, trigger, rights, and confidence failures after the ranked list.
 
 ## Report real progress
 

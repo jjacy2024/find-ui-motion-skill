@@ -715,6 +715,25 @@ class CatalogToolsTest(unittest.TestCase):
         ):
             self.assertIn(rule, retrieval_rules)
 
+    def test_soft_singular_requests_preserve_quick_pass_and_comparison_set(self):
+        skill_text = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
+        exact_rules = (SKILL_ROOT / "references" / "exact-search.md").read_text(encoding="utf-8")
+        inspiration_rules = (SKILL_ROOT / "references" / "inspiration-exploration.md").read_text(encoding="utf-8")
+        preview_rules = (SKILL_ROOT / "references" / "source-preview.md").read_text(encoding="utf-8")
+        deep_rules = (SKILL_ROOT / "references" / "visual-deep-match.md").read_text(encoding="utf-8")
+
+        self.assertIn("The user-visible quick pass is mandatory", skill_text)
+        self.assertIn("only when the current user request explicitly contains `直接深度匹配`", skill_text)
+        self.assertIn("A retrieval trace or progress message is not a delivered quick pass", skill_text)
+        self.assertIn("Treat soft-singular wording such as `帮我找一个`", skill_text)
+        self.assertIn("Keep `--target-count 8`", exact_rules)
+        self.assertIn("Do not replace it with a retrieval count, progress summary, or early recommendation", exact_rules)
+        self.assertIn("put one recommendation first and keep the other eligible references", inspiration_rules)
+        self.assertIn("Soft-singular requests such as `帮我找一个`", preview_rules)
+        self.assertIn("do not run `rank_visual_matches.py --limit 1`", deep_rules)
+        for rules in (skill_text, exact_rules, inspiration_rules, preview_rules, deep_rules):
+            self.assertIn("`直接深度匹配`", rules)
+
     def test_source_health_rejects_wrapper_200_with_missing_project_data(self):
         result = classify_case(
             {

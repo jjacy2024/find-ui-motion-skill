@@ -75,8 +75,11 @@ The board demonstrates motion DNA with generic shapes. Label every card `local-s
 
 For discovery after any necessary inspiration conversation, return a quick metadata-based pass before visual deep matching:
 
+The user-visible quick pass is mandatory. The only instruction that permits skipping it is the user's explicit phrase `直接深度匹配` in the current request. Do not treat a precise screenshot, an obvious best candidate, urgency, an implementation request, or internal catalog recall as permission to bypass the quick pass. A retrieval trace or progress message is not a delivered quick pass.
+
 - Read [source-health.md](references/source-health.md) and apply its current content-health gate before calling any dynamic or interactive item eligible. An outer-page HTTP 200, `last_shallow_check`, or catalog record alone never proves that the named item still renders.
 - Show exactly eight eligible concrete case links by default and never more than ten when the user explicitly requests more. Include only items classified `render_verified` or `capture_restricted`. Reduce the count below eight only when fewer than eight unique, relevant, content-healthy cases remain; return every eligible remainder and state the shortfall reason. Never pad the list with weak, duplicate, inaccessible, broken, shell-only, or non-item links.
+- Treat soft-singular wording such as `帮我找一个`, `推荐一个`, `给我一个最像的`, or `选一个最合适的` as a request for a recommendation, not as a one-result limit. Keep the default eight-case comparison, put the strongest candidate first or in a separate `最推荐` block, and still show the other eligible candidates. Reduce the requested count to one only when the user explicitly says an exclusive constraint such as `只要一个，不要其他候选`; this changes the count but does not authorize skipping the visible quick pass.
 - Never count a local `adjacent` case as an exact result merely to reach eight. When external supplementation is needed, present local exact, local adjacent, and external cases under visibly separate provenance labels.
 - Count code-backed or runtime-backed cases first. Do not include or count a video-only item unless `video_case_search_authorized=true`; when authorized, place those items under `视频补充（已授权）` instead of mixing them into the default code-first list.
 - Link directly to each public item or demo. For a live-observed `official-media` record, use its `preview_url` as `观看动效` and keep the item `url` separately as `来源页`; never send an empty wrapper as the watch link. Do not put a category, search, collection, or homepage in the case list; label those separately as `继续探索入口`.
@@ -84,7 +87,7 @@ For discovery after any necessary inspiration conversation, return a quick metad
 - Label the pass `快速初筛，尚未完成视觉复核` and state whether visual deep matching will continue.
 - Interpret `换一批` as the next page of three by default. Accept a requested size up to ten and exclude every case ID and canonical item URL already shown in the task.
 
-If the user says `只要快速结果`, stop after the quick pass. Otherwise continue visual deep matching in the same task when concrete item links and visual tools are available. If the user says `直接深度匹配`, skip the visible quick pass but still create a bounded text-recalled candidate pool.
+If the user says `只要快速结果`, stop after the quick pass. Otherwise continue visual deep matching in the same task when concrete item links and visual tools are available. Skip the visible quick pass only when the current user request explicitly contains `直接深度匹配`; no inferred intent or alternative wording is sufficient. Even then, still create a bounded text-recalled candidate pool before live checking.
 
 ## Show and analyze real source evidence
 
