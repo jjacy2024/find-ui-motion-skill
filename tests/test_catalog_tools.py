@@ -60,10 +60,10 @@ class CatalogToolsTest(unittest.TestCase):
         self.assertEqual(errors, [])
         self.assertEqual(motion_errors, [])
         self.assertEqual(example_errors, [])
-        self.assertEqual(len(catalog["sites"]), 24)
+        self.assertEqual(len(catalog["sites"]), 25)
         site_ids = {site["id"] for site in catalog["sites"]}
         self.assertTrue({"uiverse", "unicorn-studio", "lottielab", "design-spells", "transitions-dev", "originkit", "pixel-perfect"} <= site_ids)
-        self.assertTrue({"aceternity-ui", "animate-ui", "21st-dev", "motion-primitives", "threeui"} <= site_ids)
+        self.assertTrue({"aceternity-ui", "animate-ui", "21st-dev", "motion-primitives", "threeui", "circle-loaders"} <= site_ids)
         self.assertTrue({"hover-css", "codepen", "lottiefiles"}.isdisjoint(site_ids))
         self.assertGreaterEqual(len(motions), 65)
         self.assertGreaterEqual(len(examples), 3000)
@@ -267,6 +267,25 @@ class CatalogToolsTest(unittest.TestCase):
             "https://21st.dev/@author/components/animated-hero",
         )
 
+    def test_circle_loaders_are_anchor_linked_live_svg_snippets(self):
+        examples, errors = load_examples(SKILL_ROOT / "references" / "examples.jsonl")
+        self.assertEqual(errors, [])
+        circle_examples = [example for example in examples if example["site_id"] == "circle-loaders"]
+
+        self.assertEqual(len(circle_examples), 24)
+        self.assertTrue(all(example["url"].startswith("https://circleloaders.dominikakissi.com/#") for example in circle_examples))
+        self.assertTrue(all(example["preview_strategy"] == "live-capture" for example in circle_examples))
+        self.assertTrue(all(example["rights"]["status"] == "reference-only" for example in circle_examples))
+        self.assertTrue(all(example["verification"]["kind"] == "browser-page-motion" for example in circle_examples))
+        self.assertTrue(all(example["verification"]["running_animations"] > 0 for example in circle_examples))
+        self.assertEqual(
+            {example["source_evidence"]["item_anchor"] for example in circle_examples},
+            {example["url"].split("#", 1)[1] for example in circle_examples},
+        )
+
+        radar = search_catalog("SVG 雷达扫描加载器", strategy="auto", candidate_limit=64)
+        self.assertIn("circle-loaders-radar", {item["id"] for item in radar["quick_candidates"][:5]})
+
     def test_trigger_metadata(self):
         skill_text = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
         frontmatter = skill_text.split("---", 2)[1]
@@ -339,14 +358,14 @@ class CatalogToolsTest(unittest.TestCase):
     def test_catalog_overview_reports_current_bundled_counts(self):
         overview = build_catalog_overview()
 
-        self.assertEqual(overview["catalog_version"], "2026.08.10")
-        self.assertEqual(overview["source_count"], 24)
-        self.assertEqual(overview["case_count"], 3671)
+        self.assertEqual(overview["catalog_version"], "2026.08.11")
+        self.assertEqual(overview["source_count"], 25)
+        self.assertEqual(overview["case_count"], 3695)
         self.assertNotIn("sites", overview)
         self.assertEqual(
             overview["announcement"],
-            "当前版本 2026.08.10 的内置清单共收录 24 个来源网站，"
-            "案例库中共有 3671 个案例。"
+            "当前版本 2026.08.11 的内置清单共收录 25 个来源网站，"
+            "案例库中共有 3695 个案例。"
             "如果你有兴趣，可以查看网站清单，并手动点击链接访问任意来源网站。",
         )
 
@@ -554,7 +573,7 @@ class CatalogToolsTest(unittest.TestCase):
             candidate_limit=64,
         )
         completed = {item["stage"]: item for item in result["retrieval_trace"] if item["status"] == "completed"}
-        self.assertEqual(result["examples_total"], 3671)
+        self.assertEqual(result["examples_total"], 3695)
         self.assertEqual(completed["global"]["examples_scanned"], result["examples_total"])
         self.assertEqual(completed["global-expanded"]["examples_scanned"], result["examples_total"])
         self.assertEqual(result["retrieval_level"], "global-expanded")

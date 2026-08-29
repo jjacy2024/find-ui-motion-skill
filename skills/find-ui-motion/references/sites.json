@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "catalog_version": "2026.08.10",
+  "catalog_version": "2026.08.11",
   "generated_at": "2026-08-22T17:15:27Z",
   "sites": [
     {
@@ -649,6 +649,31 @@
       "last_shallow_check": "2026-08-23",
       "last_deep_review": "2026-08-23",
       "access_notes": "The public browse page, 15 exact Community routes, official preview media, public source repository, and npm package path were reviewed on 2026-08-23. Community application and component code is MIT; bundled fonts and third-party assets retain their own notices. Pro implementation source requires a paid entitlement and is intentionally excluded from the bundled examples."
+    },
+    {
+      "id": "circle-loaders",
+      "name": "Circle Loaders",
+      "status": "active",
+      "auth": "none",
+      "kind": "code-library",
+      "homepage": "https://circleloaders.dominikakissi.com/",
+      "routes": {
+        "examples": "https://circleloaders.dominikakissi.com/",
+        "categories": {
+          "loading": "https://circleloaders.dominikakissi.com/#latitude"
+        }
+      },
+      "capabilities": ["snippet", "recreate", "inspiration"],
+      "stacks": ["svg", "css"],
+      "tags": ["loading", "spinner", "loader", "svg", "css", "monochrome", "zero-dependency", "reduced-motion"],
+      "license": {
+        "status": "item-specific",
+        "url": "https://circleloaders.dominikakissi.com/"
+      },
+      "added_at": "2026-08-30",
+      "last_shallow_check": "2026-08-30",
+      "last_deep_review": "2026-08-30",
+      "access_notes": "The public collection and all 24 named anchor-linked cards were reviewed in a live browser on 2026-08-30. Every card exposed a non-zero SVG stage, running CSS animations, light and dark copy controls, zero runtime dependencies, and reduced-motion support. The site calls the standalone SVGs free and explicitly invites copying from each card, but no separate OSI license or public source repository was located; verify the current reuse, attribution, and commercial-use terms before shipping copied markup."
     }
   ]
 }
