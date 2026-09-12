@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "catalog_version": "2026.08.11",
-  "generated_at": "2026-08-22T17:15:27Z",
+  "catalog_version": "2026.09.12",
+  "generated_at": "2026-09-12T05:43:49Z",
   "sites": [
     {
       "id": "motion",
@@ -224,7 +224,7 @@
       "added_at": "2026-08-18",
       "last_shallow_check": "2026-08-20",
       "last_deep_review": null,
-      "access_notes": "Repository license is MIT plus Commons Clause as observed on 2026-08-18; verify current restrictions before reuse."
+      "access_notes": "Repository license is MIT plus Commons Clause as observed on 2026-08-18; verify current restrictions before reuse. Incremental review on 2026-09-12: only 8 selected candidates were audited; 7 admitted. Historical cases were not re-audited. MIT + Commons Clause reconfirmed; ASCII Text held for unresolved GPL-upstream versus wrapper-licence chain."
     },
     {
       "id": "magic-ui",
@@ -251,7 +251,7 @@
       "added_at": "2026-08-18",
       "last_shallow_check": "2026-08-20",
       "last_deep_review": "2026-08-18",
-      "access_notes": "Browser review verified the Shimmer Button preview, public Manual Copy path, registry command, and MIT repository license. Verify each selected component's current dependencies and generated import path."
+      "access_notes": "Browser review verified the Shimmer Button preview, public Manual Copy path, registry command, and MIT repository license. Verify each selected component's current dependencies and generated import path. Incremental review on 2026-09-12: only 1 selected candidates were audited; 1 admitted. Historical cases were not re-audited. Floating 3D Particles preview and public registry verified; official MIT reconfirmed. It remains related to existing Particles, not a new motion family."
     },
     {
       "id": "codrops",
@@ -429,7 +429,7 @@
       "added_at": "2026-08-18",
       "last_shallow_check": "2026-08-20",
       "last_deep_review": "2026-08-20",
-      "access_notes": "Twenty-seven exact public non-Pro preview pages currently render verified motion across layout, feedback, loading, hover, text, and state transitions. Free and Pro transitions can be used and modified after lawful access, but the library or a substantial part may not be repackaged or redistributed."
+      "access_notes": "Twenty-seven exact public non-Pro preview pages currently render verified motion across layout, feedback, loading, hover, text, and state transitions. Free and Pro transitions can be used and modified after lawful access, but the library or a substantial part may not be repackaged or redistributed. Incremental review on 2026-09-12: only 5 selected candidates were audited; 5 admitted. Historical cases were not re-audited. Five selected Free cases and contractual terms checked; competing-library redistribution remains prohibited."
     },
     {
       "id": "originkit",
@@ -503,12 +503,12 @@
       "tags": ["background", "particle", "text", "hover", "scroll", "three-d", "shader"],
       "license": {
         "status": "explicit",
-        "url": "https://github.com/unovue/inspira-ui/blob/main/LICENSE"
+        "url": "https://github.com/rahulv-official/inspira-ui/blob/main/LICENSE"
       },
       "added_at": "2026-08-20",
       "last_shallow_check": "2026-08-20",
       "last_deep_review": "2026-08-20",
-      "access_notes": "The official component docs and MIT repository were reviewed on 2026-08-20. Browser motion evidence admitted 142 exact component pages; two candidates without observed motion were excluded. Verify current dependencies, imports, and third-party assets before reuse."
+      "access_notes": "The official component docs and MIT repository were reviewed on 2026-08-20. Browser motion evidence admitted 142 exact component pages; two candidates without observed motion were excluded. Verify current dependencies, imports, and third-party assets before reuse. Incremental review on 2026-09-12: only 7 selected candidates were audited; 5 admitted. Historical cases were not re-audited. Current official rahulv-official repository is MIT; HTML ASCII and HTML Cloth held for unresolved upstream rights/evidence. Experimental HTML rendering needs target-browser testing."
     },
     {
       "id": "lightswind-ui",
@@ -537,7 +537,7 @@
       "added_at": "2026-08-20",
       "last_shallow_check": "2026-08-20",
       "last_deep_review": "2026-08-20",
-      "access_notes": "The official sitemap, component registry, block registry, and MIT repository were reviewed on 2026-08-20. Browser motion evidence admitted 272 exact component or block preview pages; empty, static, or broken previews were excluded. Verify current copy or CLI paths, dependencies, data placeholders, and third-party assets before reuse."
+      "access_notes": "The official sitemap, component registry, block registry, and MIT repository were reviewed on 2026-08-20. Browser motion evidence admitted 272 exact component or block preview pages; empty, static, or broken previews were excluded. Verify current copy or CLI paths, dependencies, data placeholders, and third-party assets before reuse. Incremental review on 2026-09-12: only 6 selected candidates were audited; 4 admitted. Historical cases were not re-audited. Support popup can intercept preview controls; dismiss and retry after scrolling. Smokey Frame held for low-contrast evidence; 3d Beam Circle held for mismatch with legacy BeamCircle preview code. No Pro code or demo assets redistributed."
     },
     {
       "id": "ui-beats",
@@ -565,7 +565,7 @@
       "added_at": "2026-08-20",
       "last_shallow_check": "2026-08-20",
       "last_deep_review": "2026-08-20",
-      "access_notes": "The recovered public sitemap, exact docs pages, exposed copy or registry paths, and MIT package metadata were reviewed on 2026-08-20. Browser motion evidence admitted 54 exact cases; one scratch interaction without observed motion was excluded. Verify current dependencies and bundled assets before reuse."
+      "access_notes": "The recovered public sitemap, exact docs pages, exposed copy or registry paths, and MIT package metadata were reviewed on 2026-08-20. Browser motion evidence admitted 54 exact cases; one scratch interaction without observed motion was excluded. Verify current dependencies and bundled assets before reuse. Incremental review on 2026-09-12: only 1 selected candidates were audited; 1 admitted. Historical cases were not re-audited. Scratch to Reveal now passes actual scratch-threshold and replay tests, with explicit item-level MIT; the earlier exclusion is historical."
     },
     {
       "id": "vanta-js",
@@ -674,6 +674,54 @@
       "last_shallow_check": "2026-08-30",
       "last_deep_review": "2026-08-30",
       "access_notes": "The public collection and all 24 named anchor-linked cards were reviewed in a live browser on 2026-08-30. Every card exposed a non-zero SVG stage, running CSS animations, light and dark copy controls, zero runtime dependencies, and reduced-motion support. The site calls the standalone SVGs free and explicitly invites copying from each card, but no separate OSI license or public source repository was located; verify the current reuse, attribution, and commercial-use terms before shipping copied markup."
+    },
+    {
+      "id": "openshaders",
+      "name": "OpenShaders",
+      "status": "active",
+      "auth": "none",
+      "kind": "experimental",
+      "homepage": "https://openshaders.com/",
+      "routes": {
+        "examples": "https://openshaders.com/explore",
+        "about": "https://openshaders.com/about",
+        "source": "https://github.com/openshaders/openshaders",
+        "categories": {
+          "ambient": "https://openshaders.com/explore"
+        }
+      },
+      "capabilities": [
+        "snippet",
+        "recreate",
+        "inspiration"
+      ],
+      "stacks": [
+        "javascript",
+        "react",
+        "webgl",
+        "webgpu"
+      ],
+      "tags": [
+        "shader",
+        "background",
+        "gradient",
+        "grain",
+        "ascii",
+        "dither",
+        "halftone",
+        "sparkle",
+        "liquid",
+        "mosaic",
+        "chroma"
+      ],
+      "license": {
+        "status": "item-specific",
+        "url": "https://github.com/openshaders/openshaders/blob/main/README.md"
+      },
+      "added_at": "2026-09-12",
+      "last_shallow_check": "2026-09-12",
+      "last_deep_review": "2026-09-12",
+      "access_notes": "Reviewed 24 exact username-generated shader variants across all nine visible effect filters on 2026-09-12. Each card rendered a non-zero animated canvas without login and exposed WebGL, WebGPU, React · WebGL and React · WebGPU export options. Menu availability is verified, not compilation or runtime compatibility. The full platform/editor/registry is still coming soon; the linked repository currently contains README/LICENSE metadata, not a released shader package. Platform MIT does not cover every shader: verify each item's terms before code reuse, otherwise inspiration/independent recreation only. Web source; native targets require platform-specific recreation. Entries are selected visual variants, not 24 unrelated shader implementations."
     }
   ]
 }

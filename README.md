@@ -2,13 +2,15 @@
 
 面向 Codex 的 UI 动效发现与重建 Skill，覆盖 Web 与移动端。它先返回真实案例直达链接，再用 OpenCLIP、动态区域、光流和 RRF 做可选的视觉深度匹配，最后按公开代码片段、软件包、授权资源或独立重建的顺序交付。
 
+当前版本：[Skill v0.9.8](https://github.com/jjacy2024/find-ui-motion-skill/releases/tag/v0.9.8)，内置 [Catalog 2026.09.12](https://github.com/jjacy2024/find-ui-motion-catalog/releases/tag/v2026.09.12)，共 26 个来源、3742 条案例。
+
 ## 安装
 
 把下面这段话粘贴给 Codex：
 
 ```text
 请使用 $skill-installer 安装这个 Skill：
-https://github.com/jjacy2024/find-ui-motion-skill/tree/main/skills/find-ui-motion
+https://github.com/jjacy2024/find-ui-motion-skill/tree/v0.9.8/skills/find-ui-motion
 ```
 
 安装后可在新任务中输入：
@@ -20,8 +22,8 @@ https://github.com/jjacy2024/find-ui-motion-skill/tree/main/skills/find-ui-motio
 ## 主要能力
 
 - 精确搜索、灵感探索和参考重建三种工作流。
-- 内置 25 个来源、3695 条经证据门槛筛选的具体案例。
-- 按“本地类目 → 3695 条全库模糊检索 → 按需本地同义词”确定性升级，仅在覆盖缺口时建议一次有标记的外网补充。
+- 内置 26 个来源、3742 条经证据门槛筛选的具体案例。
+- 按“本地类目 → 3742 条全库模糊检索 → 按需本地同义词”确定性升级，仅在覆盖缺口时建议一次有标记的外网补充。
 - 默认优先代码或运行时可实现的案例；仅在用户明确授权后搜索视频案例。
 - 首次启用会告知当前来源与案例数量，并可按需列出全部来源主页。
 - 发现清单外的高质量代码动效来源时，可生成仅含“网站名称与域名”的 GitHub Issue 推荐。
@@ -67,9 +69,13 @@ skills/find-ui-motion/
 
 维护脚本和测试分别位于 `maintainer/` 与 `tests/`。本仓库不包含模型权重、第三方截图、视频或运行缓存。
 
+Catalog `2026.09.12` 新增的 OpenShaders 24 个精选案例及来源许可边界见 [首批收录审核](maintainer/reviews/2026-09-12-openshaders.md)。这批元数据不代表全部着色器均可按平台 MIT 许可复用。
+
 ## English install prompt
 
 ```text
 Use $skill-installer to install this Skill:
-https://github.com/jjacy2024/find-ui-motion-skill/tree/main/skills/find-ui-motion
+https://github.com/jjacy2024/find-ui-motion-skill/tree/v0.9.8/skills/find-ui-motion
 ```
+
+本轮 28 条候选经实际动效、重复程度与许可复核，23 条通过、5 条暂缓；见 [增量复核记录](maintainer/reviews/2026-09-12-incremental-28.md)。v0.9.8 仅包含通过的案例链接和描述，暂缓项、第三方代码及媒体未进入发布包。相较 v0.9.7，内置索引新增 47 条案例。

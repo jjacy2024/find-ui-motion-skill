@@ -10,6 +10,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -60,7 +61,7 @@ class CatalogToolsTest(unittest.TestCase):
         self.assertEqual(errors, [])
         self.assertEqual(motion_errors, [])
         self.assertEqual(example_errors, [])
-        self.assertEqual(len(catalog["sites"]), 25)
+        self.assertEqual(len(catalog["sites"]), 26)
         site_ids = {site["id"] for site in catalog["sites"]}
         self.assertTrue({"uiverse", "unicorn-studio", "lottielab", "design-spells", "transitions-dev", "originkit", "pixel-perfect"} <= site_ids)
         self.assertTrue({"aceternity-ui", "animate-ui", "21st-dev", "motion-primitives", "threeui", "circle-loaders"} <= site_ids)
@@ -83,6 +84,75 @@ class CatalogToolsTest(unittest.TestCase):
             )
         )
         self.assertTrue(all(example.get("verification", {}).get("verified_at") == example["last_verified"] for example in examples))
+
+    def test_incremental_28_batch_admits_only_reviewed_reference_metadata(self):
+        examples, errors = load_examples()
+        self.assertEqual(errors, [])
+        batch = [item for item in examples if item.get("admission_review", {}).get("batch") == "2026-09-12-28"]
+        self.assertEqual(len(batch), 23)
+        expected = {"transitions-dev": 5, "react-bits": 7, "magic-ui": 1,
+                    "inspira-ui": 5, "lightswind-ui": 4, "ui-beats": 1}
+        self.assertEqual({site: sum(item["site_id"] == site for item in batch) for site in expected}, expected)
+        held = {"react-bits-ascii-text", "inspira-ui-html-ascii", "inspira-ui-html-cloth",
+                "lightswind-ui-components-3d-smokey-frame", "lightswind-ui-components-3d-beam-circle"}
+        self.assertTrue(held.isdisjoint({item["id"] for item in examples}))
+        for item in batch:
+            self.assertEqual(item["rights"]["status"], "reference-only")
+            self.assertEqual(item["rights"]["reviewed_at"], "2026-09-12")
+            self.assertTrue(item["rights"]["licence_url"].startswith("https://"))
+            self.assertEqual(item["last_verified"], "2026-09-12")
+            self.assertEqual(item["verification"]["verified_at"], item["last_verified"])
+            self.assertIn("unmeasured", item["verification"]["limitations"])
+            self.assertGreaterEqual(item["verification"]["unique_frame_hashes"], 1)
+        self.assertIn("Only scroll deformation verified", next(item for item in batch if item["id"] == "inspira-ui-html-drag")["verification"]["limitations"])
+        self.assertIn("carousel navigation not independently verified", next(item for item in batch if item["id"] == "lightswind-ui-components-grain-carousel")["verification"]["limitations"])
+
+    def test_openshaders_batch_preserves_family_and_rights_boundaries(self):
+        catalog = load_json(SKILL_ROOT / "references" / "sites.json")
+        site = next(site for site in catalog["sites"] if site["id"] == "openshaders")
+        self.assertEqual(site["license"]["status"], "item-specific")
+        self.assertNotIn("package", site["capabilities"])
+        examples, errors = load_examples()
+        self.assertEqual(errors, [])
+        batch = [example for example in examples if example["site_id"] == "openshaders"]
+        expected_counts = {
+            "Pure field": 3, "Grain": 3, "ASCII": 3, "Dither": 3,
+            "Halftone": 3, "Sparkle": 2, "Liquid": 3, "Mosaic": 2, "Chroma": 2,
+        }
+        self.assertEqual(len(batch), 24)
+        self.assertEqual(
+            {family: sum(item["metadata"]["effect_family"] == family for item in batch)
+             for family in expected_counts},
+            expected_counts,
+        )
+        for item in batch:
+            self.assertTrue(item["url"].startswith("https://openshaders.com/@"))
+            self.assertEqual(item["rights"]["status"], "reference-only")
+            self.assertEqual(item["metadata"]["source_environment"], "web")
+            self.assertEqual(item["verification"]["health_state"], "render_verified")
+            self.assertEqual(item["verification"]["frame_hash_scope"], "full-page-screenshot")
+            self.assertEqual(len(set(item["verification"]["frame_hashes"])), 2)
+            if item["metadata"]["effect_family"] == "ASCII":
+                self.assertTrue(all(motion_id.startswith("ambient-") for motion_id in item["motion_ids"]))
+
+    def test_openshaders_families_are_retrievable_with_background_context(self):
+        queries = {
+            "pure field background": "Pure field",
+            "颗粒背景": "Grain",
+            "ASCII 字符背景": "ASCII",
+            "dither background": "Dither",
+            "halftone background": "Halftone",
+            "sparkle background": "Sparkle",
+            "液态背景": "Liquid",
+            "马赛克背景": "Mosaic",
+            "色散背景": "Chroma",
+        }
+        for query, family in queries.items():
+            with self.subTest(query=query):
+                result = search_catalog(query)
+                selected = [item for item in result["quick_candidates"] if item["site_id"] == "openshaders"]
+                self.assertTrue(any(item["metadata"]["effect_family"] == family for item in selected))
+                self.assertLessEqual(len(selected), 3)
 
     def test_conservative_curation_keeps_only_current_dynamic_evidence(self):
         checked_at = "2026-08-19"
@@ -358,14 +428,14 @@ class CatalogToolsTest(unittest.TestCase):
     def test_catalog_overview_reports_current_bundled_counts(self):
         overview = build_catalog_overview()
 
-        self.assertEqual(overview["catalog_version"], "2026.08.11")
-        self.assertEqual(overview["source_count"], 25)
-        self.assertEqual(overview["case_count"], 3695)
+        self.assertEqual(overview["catalog_version"], "2026.09.12")
+        self.assertEqual(overview["source_count"], 26)
+        self.assertEqual(overview["case_count"], 3742)
         self.assertNotIn("sites", overview)
         self.assertEqual(
             overview["announcement"],
-            "当前版本 2026.08.11 的内置清单共收录 25 个来源网站，"
-            "案例库中共有 3695 个案例。"
+            "当前版本 2026.09.12 的内置清单共收录 26 个来源网站，"
+            "案例库中共有 3742 个案例。"
             "如果你有兴趣，可以查看网站清单，并手动点击链接访问任意来源网站。",
         )
 
@@ -573,7 +643,7 @@ class CatalogToolsTest(unittest.TestCase):
             candidate_limit=64,
         )
         completed = {item["stage"]: item for item in result["retrieval_trace"] if item["status"] == "completed"}
-        self.assertEqual(result["examples_total"], 3695)
+        self.assertEqual(result["examples_total"], 3742)
         self.assertEqual(completed["global"]["examples_scanned"], result["examples_total"])
         self.assertEqual(completed["global-expanded"]["examples_scanned"], result["examples_total"])
         self.assertEqual(result["retrieval_level"], "global-expanded")
@@ -603,7 +673,13 @@ class CatalogToolsTest(unittest.TestCase):
         self.assertEqual(result["external_search"]["decision"], "skip")
         self.assertFalse(result["external_search"]["recommended"])
         self.assertEqual(result["quick_candidates"][0]["id"], "threeui-stream-convergence")
-        self.assertIn("react-bits-liquid-chrome", {item["id"] for item in result["quick_candidates"][:3]})
+        self.assertIn("react-bits-liquid-chrome", {item["id"] for item in result["quick_candidates"]})
+        self.assertTrue(
+            any(
+                {"mechanism-liquid", "scene-background"} <= set(item["quick_core_matches"])
+                for item in result["quick_candidates"][:3]
+            )
+        )
         self.assertIn("scene-background", result["quick_candidates"][0]["quick_core_matches"])
         self.assertLessEqual(
             max(
@@ -614,7 +690,12 @@ class CatalogToolsTest(unittest.TestCase):
         )
 
     def test_crt_gap_emits_focused_external_query_only_after_local_ladder(self):
-        result = search_catalog("CRT 电视关机扫描线页面转场", strategy="auto", candidate_limit=64)
+        # Keep this a coverage-gap fixture even after a CRT reference is admitted.
+        examples, errors = load_examples()
+        self.assertEqual(errors, [])
+        gap_examples = [item for item in examples if item["id"] != "react-bits-crt-warp"]
+        with patch("catalog_lib.load_effective_examples", return_value=(gap_examples, "test-fixture", [])):
+            result = search_catalog("CRT 电视关机扫描线页面转场", strategy="auto", candidate_limit=64)
         self.assertFalse(result["coverage"]["complete"])
         self.assertGreaterEqual(result["quick_coverage"]["eligible_count"], 15)
         self.assertTrue(result["quick_coverage"]["core_behavior_gap"])
